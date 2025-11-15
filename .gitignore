@@ -1,0 +1,149 @@
+.config/
+# ==========================================
+# Node / Core
+# ==========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp/
+.pnp.js
+.cache/
+.cache-loader/
+
+# ------------------------------------------
+# Lock files (optional)
+# Uncomment if you DO NOT want lock files committed
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+# ------------------------------------------
+
+# ==========================================
+# Build Outputs
+# ==========================================
+.next/
+out/
+dist/
+build/
+public/build/
+coverage/
+*.map
+*.tsbuildinfo
+
+# ==========================================
+# OS / Editor
+# ==========================================
+.DS_Store
+Thumbs.db
+
+# VSCode settings you DO want to ignore
+.vscode/*
+# But allow recommended settings (optional)
+!.vscode/settings.json
+!.vscode/extensions.json
+
+.idea/
+*.swp
+*.swo
+
+# ==========================================
+# ENV / Secrets
+# ==========================================
+.env
+.env.*
+.env.local
+.env.production
+.env.development
+.env.test
+
+# Stripe keys
+STRIPE_SECRET_KEY*
+STRIPE_PRIVATE_KEY*
+
+# Supabase keys
+SUPABASE_URL
+SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+
+# Email provider keys
+RESEND_API_KEY*
+SENDGRID_API_KEY*
+MAILGUN_API_KEY*
+
+# Cloudflare
+CLOUDFLARE_API_TOKEN*
+CLOUDFLARE_ACCOUNT_ID*
+
+# SMS / Twilio
+TWILIO_*
+SMS_API_KEY*
+
+# Optional Interac variables
+INTERAC_*
+BANK_*
+
+# ==========================================
+# Supabase
+# ==========================================
+supabase/.branches
+supabase/.temp
+.supabase/
+
+# ==========================================
+# Vercel
+# ==========================================
+.vercel/
+
+# ==========================================
+# Next.js Cache / Artifacts
+# ==========================================
+.next/
+next-env.d.ts
+.next/static/chunks/
+.next/static/css/
+
+# ==========================================
+# Builder.io Cleanup
+# ==========================================
+builder/
+builder-cache/
+__builder_io_*/
+**/*builder*.json
+**/*builder*.html
+**/*builder*.txt
+**/*builder*.md
+**/builder-*
+**/*-builder*
+
+# ==========================================
+# Readdy.ai Cleanup
+# ==========================================
+readdy/
+readdy-ai/
+ai-generated/
+generated-pages/
+generated-components/
+**/*readdy*.json
+**/*readdy*.html
+**/*readdy*.tsx
+**/*readdy*.jsx
+**/*readdy*.md
+**/readdy-*
+**/*-readdy*
+
+# ==========================================
+# Logs / Temp
+# ==========================================
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+tmp/
+temp/
+*.tmp
+*.temp
+
+.vercel

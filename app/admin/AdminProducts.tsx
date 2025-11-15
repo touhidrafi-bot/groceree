@@ -1,0 +1,1276 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { supabase, SUPABASE_URL, SUPABASE_CONFIGURED } from '../../lib/auth';
+
+interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  description: string;
+  price: number;
+  department: string;
+  subdepartment: string;
+  scalable: boolean;
+  tax_type: string;
+  country_of_origin: string;
+  unit: string;
+  stock_quantity: number;
+  low_stock_threshold: number;
+  images: string[];
+  is_active: boolean;
+  created_at: string;
+}
+
+interface StockAlert {
+  id: string;
+  product_id: string;
+  alert_type: string;
+  current_stock: number;
+  threshold: number;
+  is_read: boolean;
+  created_at: string;
+  products: {
+    name: string;
+    sku: string;
+    stock_quantity: number;
+  };
+}
+
+interface StockAdjustment {
+  id: string;
+  product_id: string;
+  adjustment_type: string;
+  quantity_change: number;
+  previous_stock: number;
+  new_stock: number;
+  reason: string;
+  created_at: string;
+  products: {
+    name: string;
+    sku: string;
+  };
+  users: {
+    email: string;
+  } | null;
+}
+
+const departments = [
+  'Produce',
+  'Grocery (Non-Taxable)',
+  'Grocery',
+  'Dairy, Dairy Alternatives & Eggs',
+  'Bakery',
+  'Grocery (Taxable GST)',
+  'Health & Beauty',
+];
+
+const countries = [
+  'Canada', 'USA', 'Mexico', 'Ecuador', 'Chile', 'Peru', 'Colombia',
+  'Spain', 'Italy', 'France', 'Netherlands', 'Belgium', 'Germany',
+  'New Zealand', 'Australia', 'South Africa', 'Morocco', 'Turkey', 'China', 'Costa Rica', 'Vietnam', 'South Korea'
+];
+
+const departmentSubdepartments: { [key: string]: string[] } = {
+  'Produce': ['Fresh Fruits', 'Fresh Vegetables', 'Organic Produce', 'Herbs & Seasonings'],
+  'Grocery (Non-Taxable)': ['Canned Goods', 'Dry Goods', 'Condiments', 'Baking Supplies'],
+  'Grocery': ['Pantry Staples', 'Cooking Essentials', 'International Foods', 'Specialty Items'],
+  'Dairy, Dairy Alternatives & Eggs': ['Milk & Cream', 'Cheese', 'Yogurt', 'Plant-Based Alternatives', 'Eggs'],
+  'Bakery': ['Fresh Bread', 'Pastries', 'Cakes & Desserts', 'Bagels & Muffins'],
+  'Grocery (Taxable GST)': ['Snacks', 'Beverages', 'Candy & Chocolate', 'Ice Cream'],
+  'Health & Beauty': ['Personal Care', 'Vitamins & Supplements', 'First Aid', 'Beauty Products']
+};
+
+const _taxTypeLabels: { [key: string]: string } = {
+  'none': 'Tax-Free',
+  'gst': 'GST Only',
+  'gst_pst': 'GST + PST'
+};
+
+export default function AdminProducts() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
+  const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [showAlertsModal, setShowAlertsModal] = useState(false);
+  const [showAdjustmentsModal, setShowAdjustmentsModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [stockEditProduct, setStockEditProduct] = useState<Product | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [availableSubdepartments, setAvailableSubdepartments] = useState<string[]>([]);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    sku: '',
+    department: '',
+    subdepartment: '',
+    price: '',
+    unit: '',
+    stock_quantity: '',
+    low_stock_threshold: '5',
+    tax_type: 'none',
+    country_of_origin: 'Canada',
+    description: '',
+    images: [] as string[],
+    scalable: false,
+    is_active: true
+  });
+  const [stockFormData, setStockFormData] = useState({
+    new_stock: '',
+    reason: ''
+  });
+
+  useEffect(() => {
+    fetchProducts();
+    fetchStockAlerts();
+    fetchStockAdjustments();
+
+    // Refresh stock data every 60 seconds to reflect order changes
+    const interval = setInterval(() => {
+      fetchProducts();
+      fetchStockAlerts();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Filter products based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredProducts(products);
+    } else {
+      const filtered = products.filter(product => {
+        const query = searchQuery.toLowerCase();
+        const name = (product.name || '').toLowerCase();
+        const department = (product.department || '').toLowerCase();
+        const subdepartment = (product.subdepartment || '').toLowerCase();
+        const sku = (product.sku || '').toLowerCase();
+
+        // Determine stock status
+        const stockStatus = product.stock_quantity <= 0 ? 'out of stock' :
+                           product.stock_quantity <= (product.low_stock_threshold || 5) ? 'low stock' :
+                           'in stock';
+
+        return name.includes(query) ||
+               department.includes(query) ||
+               subdepartment.includes(query) ||
+               sku.includes(query) ||
+               stockStatus.includes(query);
+      });
+      setFilteredProducts(filtered);
+    }
+  }, [products, searchQuery]);
+
+  const fetchProducts = async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated');
+      }
+
+      let fetchedProducts: Product[] = [];
+
+      if (!SUPABASE_URL) {
+        console.warn('Skipping fetchProducts: NEXT_PUBLIC_SUPABASE_URL not configured');
+        setProducts([]);
+      } else {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/admin-products-management`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            method: 'GET',
+            action: 'getProducts'
+          }),
+        });
+
+        const result = await response.json();
+        if (result.error) throw new Error(result.error);
+
+        fetchedProducts = result.products || [];
+        setProducts(fetchedProducts);
+      }
+
+      // Update stockEditProduct if it's open with fresh data
+      if (stockEditProduct && fetchedProducts.length > 0) {
+        const updatedProduct = fetchedProducts.find((p: Product) => p.id === stockEditProduct.id);
+        if (updatedProduct) {
+          setStockEditProduct(updatedProduct);
+          setStockFormData({
+            new_stock: updatedProduct.stock_quantity.toString(),
+            reason: ''
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      showNotification('error', 'Failed to load products');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStockAlerts = async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) return;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/stock-management`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'getStockAlerts'
+        }),
+      });
+
+      const result = await response.json();
+      if (!result.error) {
+        setStockAlerts(result.alerts || []);
+      }
+    } catch (error) {
+      console.error('Error fetching stock alerts:', error);
+    }
+  };
+
+  const fetchStockAdjustments = async () => {
+    try {
+      const { data: adjustments, error } = await supabase
+        .from('stock_adjustments')
+        .select(`
+          *,
+          products (name, sku),
+          users (email)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (!error) {
+        setStockAdjustments(adjustments || []);
+      }
+    } catch (error) {
+      console.error('Error fetching stock adjustments:', error);
+    }
+  };
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleDepartmentChange = (department: string) => {
+    setFormData(prev => ({
+      ...prev,
+      department,
+      subdepartment: ''
+    }));
+    setAvailableSubdepartments(departmentSubdepartments[department] || []);
+  };
+
+  const handleDelete = async (productId: string) => {
+    if (!confirm('Are you sure you want to delete this product?')) return;
+
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated');
+      }
+
+      if (!SUPABASE_URL) {
+        console.warn('Skipping deleteProduct: NEXT_PUBLIC_SUPABASE_URL not configured');
+        showNotification('error', 'Not configured to call server functions');
+      } else {
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/admin-products-management`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            method: 'DELETE',
+            action: 'deleteProduct',
+            productId
+          }),
+        });
+
+        const result = await response.json();
+        if (result.error) throw new Error(result.error);
+
+        showNotification('success', 'Product deleted successfully');
+        fetchProducts();
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      showNotification('error', 'Failed to delete product');
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length + formData.images.length > 6) {
+      showNotification('error', 'Maximum 6 images allowed');
+      return;
+    }
+
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated');
+      }
+
+      const uploadedImages: string[] = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${i}.${fileExt}`;
+        const filePath = `products/${fileName}`;
+
+        // Upload to Supabase Storage
+        const { data: _uploadData, error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(filePath);
+
+        uploadedImages.push(publicUrl);
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, ...uploadedImages]
+      }));
+
+      showNotification('success', `${uploadedImages.length} image(s) uploaded successfully`);
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      showNotification('error', `Failed to upload images: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
+
+  const markAlertAsRead = async (alertId: string) => {
+    try {
+      if (!SUPABASE_CONFIGURED) {
+        throw new Error('Supabase not configured');
+      }
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) return;
+
+      await fetch(`${SUPABASE_URL}/functions/v1/stock-management`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'markAlertAsRead',
+          orderItems: { alertId }
+        }),
+      });
+
+      fetchStockAlerts();
+    } catch (error) {
+      console.error('Error marking alert as read:', error);
+    }
+  };
+
+  const handleStockAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!stockEditProduct) return;
+
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/stock-management`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'manualStockAdjustment',
+          orderItems: [{
+            product_id: stockEditProduct.id,
+            new_stock: parseInt(stockFormData.new_stock)
+          }],
+          userId: session.user.id,
+          reason: stockFormData.reason || 'Manual stock adjustment'
+        }),
+      });
+
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+
+      showNotification('success', 'Stock updated successfully');
+      setShowStockModal(false);
+      setStockFormData({ new_stock: '', reason: '' });
+      setStockEditProduct(null);
+      await fetchProducts();
+      fetchStockAlerts();
+      fetchStockAdjustments();
+    } catch (error) {
+      console.error('Error updating stock:', error);
+      showNotification('error', `Failed to update stock: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Not authenticated');
+      }
+
+      const productData = {
+        name: formData.name,
+        department: formData.department,
+        subdepartment: formData.subdepartment,
+        price: parseFloat(formData.price),
+        unit: formData.unit,
+        stock_quantity: parseInt(formData.stock_quantity),
+        low_stock_threshold: parseInt(formData.low_stock_threshold),
+        country_of_origin: formData.country_of_origin,
+        description: formData.description,
+        images: formData.images,
+        scalable: formData.scalable,
+        is_active: formData.is_active
+      };
+
+      const isEditing = editingProduct !== null;
+      const action = isEditing ? 'updateProduct' : 'createProduct';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const requestBody: any = {
+        method,
+        action,
+        productData
+      };
+
+      if (isEditing) {
+        requestBody.productId = editingProduct.id;
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/admin-products-management`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const result = await response.json();
+      if (result.error) throw new Error(result.error);
+
+      showNotification('success', result.message);
+      setShowModal(false);
+      resetForm();
+      fetchProducts();
+    } catch (error) {
+      console.error('Error saving product:', error);
+      showNotification('error', `Failed to ${editingProduct ? 'update' : 'create'} product: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleEdit = (product: Product) => {
+    setEditingProduct(product);
+    setFormData({
+      name: product.name,
+      sku: product.sku,
+      department: product.department,
+      subdepartment: product.subdepartment || '',
+      price: product.price.toString(),
+      unit: product.unit,
+      stock_quantity: product.stock_quantity.toString(),
+      low_stock_threshold: (product.low_stock_threshold || 5).toString(),
+      tax_type: product.tax_type || 'none',
+      country_of_origin: product.country_of_origin || 'Canada',
+      description: product.description || '',
+      images: product.images || [],
+      scalable: product.scalable || false,
+      is_active: product.is_active !== undefined ? product.is_active : true
+    });
+    setAvailableSubdepartments(departmentSubdepartments[product.department] || []);
+    setShowModal(true);
+  };
+
+  const handleStockEdit = (product: Product) => {
+    setStockEditProduct(product);
+    setStockFormData({
+      new_stock: product.stock_quantity.toString(),
+      reason: ''
+    });
+    setShowStockModal(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      sku: '',
+      department: '',
+      subdepartment: '',
+      price: '',
+      unit: '',
+      stock_quantity: '',
+      low_stock_threshold: '5',
+      tax_type: 'none',
+      country_of_origin: 'Canada',
+      description: '',
+      images: [],
+      scalable: false,
+      is_active: true
+    });
+    setEditingProduct(null);
+    setAvailableSubdepartments([]);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+          notification.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+        }`}>
+          {notification.message}
+        </div>
+      )}
+
+      {/* Header with Stock Alerts */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Product Management</h1>
+          <p className="text-gray-600">Manage your grocery inventory</p>
+        </div>
+        <div className="flex items-center space-x-4">
+          {stockAlerts.length > 0 && (
+            <button
+              onClick={() => setShowAlertsModal(true)}
+              className="relative bg-red-100 text-red-800 px-4 py-2 rounded-lg hover:bg-red-200 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <div className="w-4 h-4 flex items-center justify-center mr-2">
+                <i className="ri-alert-line"></i>
+              </div>
+              {stockAlerts.length} Stock Alert{stockAlerts.length > 1 ? 's' : ''}
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                {stockAlerts.length}
+              </span>
+            </button>
+          )}
+          <button
+            onClick={() => setShowAdjustmentsModal(true)}
+            className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg hover:bg-blue-200 transition-colors cursor-pointer whitespace-nowrap"
+          >
+            <div className="w-4 h-4 flex items-center justify-center mr-2">
+              <i className="ri-history-line"></i>
+            </div>
+            Stock History
+          </button>
+          <button
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap"
+          >
+            Add New Product
+          </button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="bg-white rounded-lg shadow-sm p-4">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <div className="w-5 h-5 flex items-center justify-center">
+              <i className="ri-search-line text-gray-400"></i>
+            </div>
+          </div>
+          <input
+            type="text"
+            placeholder="Search products by name, category, SKU, or stock status..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+          />
+          <button
+            onClick={() => {
+              fetchProducts();
+              fetchStockAlerts();
+              fetchStockAdjustments();
+            }}
+            className="absolute inset-y-0 right-10 flex items-center cursor-pointer hover:opacity-70 transition-opacity"
+            title="Refresh product data"
+          >
+            <div className="w-5 h-5 flex items-center justify-center">
+              <i className="ri-refresh-line text-gray-400 hover:text-gray-600"></i>
+            </div>
+          </button>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer"
+            >
+              <div className="w-5 h-5 flex items-center justify-center">
+                <i className="ri-close-line text-gray-400 hover:text-gray-600"></i>
+              </div>
+            </button>
+          )}
+        </div>
+        {searchQuery && (
+          <p className="text-sm text-gray-600 mt-2">
+            Showing {filteredProducts.length} of {products.length} products matching "{searchQuery}"
+          </p>
+        )}
+        {!searchQuery && products.length > 0 && (
+          <p className="text-sm text-gray-600 mt-2">
+            Showing all {products.length} products
+          </p>
+        )}
+      </div>
+
+      {/* Products Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        {filteredProducts.length === 0 && searchQuery ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-gray-100 rounded-full">
+              <i className="ri-search-line text-2xl text-gray-400"></i>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
+            <p className="text-gray-600">Try adjusting your search terms or clear the search to see all products.</p>
+            <button
+              onClick={() => setSearchQuery('')}
+              className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Clear Search
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredProducts.map((product) => {
+                  const isLowStock = product.stock_quantity <= (product.low_stock_threshold || 5);
+                  const isOutOfStock = product.stock_quantity <= 0;
+                  
+                  return (
+                    <tr key={product.id} className={isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-yellow-50' : ''}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="h-10 w-10 flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              className="h-10 w-10 rounded-lg object-cover"
+                              src={product.images?.[0] || '/placeholder-product.jpg'}
+                              alt={product.name}
+                            />
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                            <div className="text-sm text-gray-500">{product.unit}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+                        {product.sku}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{product.department}</div>
+                        <div className="text-sm text-gray-500">{product.subdepartment}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${product.price.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-sm font-medium ${
+                            isOutOfStock ? 'text-red-600' : isLowStock ? 'text-yellow-600' : 'text-gray-900'
+                          }`}>
+                            {product.stock_quantity}
+                          </span>
+                          {isOutOfStock && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                              Out of Stock
+                            </span>
+                          )}
+                          {!isOutOfStock && isLowStock && (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              Low Stock
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Threshold: {product.low_stock_threshold || 5}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          product.is_active 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {product.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => handleStockEdit(product)}
+                          className="text-blue-600 hover:text-blue-900 mr-4 cursor-pointer"
+                        >
+                          Stock
+                        </button>
+                        <button
+                          onClick={() => handleEdit(product)}
+                          className="text-indigo-600 hover:text-indigo-900 mr-4 cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product.id)}
+                          className="text-red-600 hover:text-red-900 cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Stock Adjustment Modal */}
+      {showStockModal && stockEditProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Adjust Stock - {stockEditProduct.name}
+                </h2>
+                <button
+                  onClick={() => setShowStockModal(false)}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <i className="ri-close-line text-xl"></i>
+                  </div>
+                </button>
+              </div>
+
+              <form onSubmit={handleStockAdjustment} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Stock: {stockEditProduct.stock_quantity}
+                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    New Stock Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={stockFormData.new_stock}
+                    onChange={(e) => setStockFormData(prev => ({ ...prev, new_stock: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Enter new stock quantity"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason for Adjustment
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={stockFormData.reason}
+                    onChange={(e) => setStockFormData(prev => ({ ...prev, reason: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Explain why you're adjusting the stock..."
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowStockModal(false)}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Update Stock
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Alerts Modal */}
+      {showAlertsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Stock Alerts</h2>
+                <button
+                  onClick={() => setShowAlertsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <i className="ri-close-line text-xl"></i>
+                  </div>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {stockAlerts.map((alert) => (
+                  <div key={alert.id} className={`p-4 rounded-lg border ${
+                    alert.alert_type === 'out_of_stock' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium text-gray-900">{alert.products.name}</h3>
+                        <p className="text-sm text-gray-600">SKU: {alert.products.sku}</p>
+                        <p className={`text-sm font-medium ${
+                          alert.alert_type === 'out_of_stock' ? 'text-red-600' : 'text-yellow-600'
+                        }`}>
+                          {alert.alert_type === 'out_of_stock' ? 'Out of Stock' : 'Low Stock'} - 
+                          Current: {alert.current_stock}, Threshold: {alert.threshold}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(alert.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => markAlertAsRead(alert.id)}
+                        className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                      >
+                        Mark as Read
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {stockAlerts.length === 0 && (
+                  <p className="text-gray-500 text-center py-8">No active stock alerts</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Adjustments History Modal */}
+      {showAdjustmentsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Stock Adjustment History</h2>
+                <button
+                  onClick={() => setShowAdjustmentsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <i className="ri-close-line text-xl"></i>
+                  </div>
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Change</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {stockAdjustments.map((adjustment) => (
+                      <tr key={adjustment.id}>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{adjustment.products?.name}</div>
+                          <div className="text-sm text-gray-500">{adjustment.products?.sku}</div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            adjustment.adjustment_type === 'order_placed' ? 'bg-blue-100 text-blue-800' :
+                            adjustment.adjustment_type === 'order_cancelled' ? 'bg-green-100 text-green-800' :
+                            adjustment.adjustment_type === 'manual_adjustment' ? 'bg-purple-100 text-purple-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {adjustment.adjustment_type.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className={`text-sm font-medium ${
+                            adjustment.quantity_change > 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {adjustment.quantity_change > 0 ? '+' : ''}{adjustment.quantity_change}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {adjustment.previous_stock} → {adjustment.new_stock}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {adjustment.users?.email || 'System'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(adjustment.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingProduct ? 'Edit Product' : 'Add New Product'}
+                </h2>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <div className="w-6 h-6 flex items-center justify-center">
+                    <i className="ri-close-line text-xl"></i>
+                  </div>
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Product Name and SKU */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Product Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="e.g., Organic Bananas"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      SKU {editingProduct ? '' : '(Auto-generated)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.sku}
+                      onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value }))}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                        !editingProduct ? 'bg-gray-50' : ''
+                      }`}
+                      placeholder={editingProduct ? 'SKU' : 'Auto-generated'}
+                      readOnly={!editingProduct}
+                    />
+                  </div>
+                </div>
+
+                {/* Department and Subdepartment */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Department *
+                    </label>
+                    <select
+                      required
+                      value={formData.department}
+                      onChange={(e) => handleDepartmentChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-8"
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map(dept => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Subdepartment
+                    </label>
+                    <select
+                      value={formData.subdepartment}
+                      onChange={(e) => setFormData(prev => ({ ...prev, subdepartment: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-8"
+                      disabled={!formData.department}
+                    >
+                      <option value="">Select Subdepartment</option>
+                      {availableSubdepartments.map(sub => (
+                        <option key={sub} value={sub}>{sub}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Price, Unit, Stock, Threshold */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Price *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={formData.price}
+                      onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Unit *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.unit}
+                      onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
+                      placeholder="each, lb, kg, pack, etc."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Stock Quantity *
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      required
+                      value={formData.stock_quantity}
+                      onChange={(e) => setFormData(prev => ({ ...prev, stock_quantity: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Low Stock Alert *
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="0"
+                      required
+                      value={formData.low_stock_threshold}
+                      onChange={(e) => setFormData(prev => ({ ...prev, low_stock_threshold: e.target.value }))}
+                      className="w-100 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="5"
+                    />
+                  </div>
+                </div>
+
+                {/* Tax Type and Country */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tax Type (Auto-assigned by Department)
+                    </label>
+                    <select
+                      value={formData.tax_type || 'none'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-8 bg-gray-50"
+                      disabled
+                    >
+                      <option value="none">Tax-Free</option>
+                      <option value="gst">GST Only</option>
+                      <option value="gst_pst">GST + PST</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Country of Origin *
+                    </label>
+                    <select
+                      required
+                      value={formData.country_of_origin || 'Canada'}
+                      onChange={(e) => setFormData(prev => ({ ...prev, country_of_origin: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 pr-8"
+                    >
+                      {countries.map(country => (
+                        <option key={country} value={country}>{country}</option>
+                      ))}
+                    </select>
+                    </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Description
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Describe the product features, benefits, and usage..."
+                  />
+                </div>
+
+                {/* Image Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Product Images (Max 6)
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      type="file"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.webp"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label htmlFor="image-upload" className="cursor-pointer flex flex-col items-center justify-center py-4">
+                      <i className="ri-upload-cloud-line text-3xl text-gray-400 mb-2"></i>
+                      <span className="text-sm text-gray-600">Click to upload images</span>
+                      <span className="text-xs text-gray-400">JPG, PNG, WebP up to 5MB each</span>
+                    </label>
+                  </div>
+                  
+                  {/* Image Preview */}
+                  {formData.images.length > 0 && (
+                    <div className="mt-4 grid grid-cols-3 gap-4">
+                      {formData.images.map((image, index) => (
+                        <div key={index} className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={image}
+                            alt={`Product ${index + 1}`}
+                            className="w-full h-24 object-cover rounded-lg"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeImage(index)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Checkboxes */}
+                <div className="flex items-center space-x-6">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.scalable}
+                      onChange={(e) => setFormData(prev => ({ ...prev, scalable: e.target.checked }))}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Scalable Product (sold by weight)</span>
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_active}
+                      onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Active</span>
+                  </label>
+                </div>
+
+                {/* Form Actions */}
+                <div className="flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap flex items-center"
+                  >
+                    {editingProduct ? 'Update Product' : 'Create Product'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

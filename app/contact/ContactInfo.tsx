@@ -1,0 +1,90 @@
+export default function ContactInfo() {
+  return (
+    <div className="bg-green-50 p-8 lg:p-12">
+      <div className="max-w-lg mx-auto">
+        <h2 className="text-3xl font-bold text-gray-900 mb-8">Get in Touch</h2>
+        
+        <div className="space-y-8">
+          <div className="flex items-start space-x-4">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <i className="ri-map-pin-line text-green-600 text-xl"></i>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1">Our Location</h3>
+              <p className="text-gray-600">
+                1234 Main Street<br />
+                Vancouver, BC V6B 1A1<br />
+                Canada
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-4">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <i className="ri-phone-line text-green-600 text-xl"></i>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1">Phone</h3>
+              <p className="text-gray-600">(604) 555-0123</p>
+              <p className="text-sm text-gray-500 mt-1">Mon-Fri: 8AM-8PM, Sat-Sun: 9AM-6PM</p>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-4">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <i className="ri-mail-line text-green-600 text-xl"></i>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1">Email</h3>
+              <p className="text-gray-600">hello@groceree.com</p>
+              <p className="text-sm text-gray-500 mt-1">We'll respond within 24 hours</p>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-4">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <i className="ri-time-line text-green-600 text-xl"></i>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1">Delivery Hours</h3>
+              <div className="text-gray-600 space-y-1">
+                <p>Monday - Friday: 8:00 AM - 9:00 PM</p>
+                <p>Saturday: 9:00 AM - 8:00 PM</p>
+                <p>Sunday: 10:00 AM - 7:00 PM</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-4">
+            <div className="w-6 h-6 flex items-center justify-center">
+              <i className="ri-truck-line text-green-600 text-xl"></i>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-1">Delivery Area</h3>
+              <p className="text-gray-600">We deliver within 10km of downtown Vancouver</p>
+              <p className="text-sm text-gray-500 mt-1">Free delivery on orders over $50</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-green-200">
+          <h3 className="font-semibold text-gray-900 mb-4">Follow Us</h3>
+          <div className="flex space-x-4">
+            <a href="#" className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center hover:bg-green-700 transition-colors">
+              <i className="ri-facebook-fill text-lg"></i>
+            </a>
+            <a href="#" className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center hover:bg-green-700 transition-colors">
+              <i className="ri-instagram-line text-lg"></i>
+            </a>
+            <a href="#" className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center hover:bg-green-700 transition-colors">
+              <i className="ri-twitter-line text-lg"></i>
+            </a>
+            <a href="#" className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center hover:bg-green-700 transition-colors">
+              <i className="ri-linkedin-fill text-lg"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
