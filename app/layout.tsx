@@ -5,7 +5,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { AuthProvider } from '../components/AuthProvider';
 import { CartProvider } from '../components/EnhancedCartProvider';
-import ReaddyWidget from '../components/ReaddyWidget';
+import ReaddyWidget from '@/components/ReaddyWidget';
 
 const inter = Inter({ subsets: ['latin'] });
 
