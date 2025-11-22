@@ -471,11 +471,11 @@ export default function ProfileContent() {
             <div className="space-y-3">
               {user.role === 'customer' && (
                 <>
-                  <Link href="/orders" className="block w-full bg-green-50 hover:bg-green-100 text-green-700 px-4 py-3 rounded-lg transition-colors flex items-center">
+                  <Link href="/orders" className="block w-full bg-green-50 hover:bg-green-100 text-green-700 px-4 py-3 rounded-lg transition-colors items-center">
                     <i className="ri-shopping-bag-line mr-3"></i>
                     View Order History
                   </Link>
-                  <Link href="/products" className="block w-full bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-3 rounded-lg transition-colors flex items-center">
+                  <Link href="/products" className="block w-full bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-3 rounded-lg transition-colors items-center">
                     <i className="ri-store-line mr-3"></i>
                     Browse Products
                   </Link>
@@ -483,14 +483,14 @@ export default function ProfileContent() {
               )}
               
               {user.role === 'driver' && (
-                <Link href="/driver" className="block w-full bg-orange-50 hover:bg-orange-100 text-orange-700 px-4 py-3 rounded-lg transition-colors flex items-center">
+                <Link href="/driver" className="block w-full bg-orange-50 hover:bg-orange-100 text-orange-700 px-4 py-3 rounded-lg transition-colors items-center">
                   <i className="ri-truck-line mr-3"></i>
                   Driver Dashboard
                 </Link>
               )}
               
               {user.role === 'admin' && (
-                <Link href="/admin" className="block w-full bg-purple-50 hover:bg-purple-100 text-purple-700 px-4 py-3 rounded-lg transition-colors flex items-center">
+                <Link href="/admin" className="block w-full bg-purple-50 hover:bg-purple-100 text-purple-700 px-4 py-3 rounded-lg transition-colors items-center">
                   <i className="ri-dashboard-line mr-3"></i>
                   Admin Dashboard
                 </Link>

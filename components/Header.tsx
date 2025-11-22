@@ -52,9 +52,21 @@ export default function Header() {
               <Link href="/contact" className="text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                 Contact
               </Link>
-              <Link href="/admin" className="text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
-                Admin
-              </Link>
+              {user && user.role === 'admin' && (
+                <Link href="/admin" className="text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                  Admin
+                </Link>
+              )}
+              {user && user.role === 'driver' && (
+                <Link href="/driver" className="text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                  Driver
+                </Link>
+              )}
+              {user && user.role === 'customer' && (
+                <Link href="/orders" className="text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                  Orders
+                </Link>
+              )}
             </nav>
 
             <div className="flex items-center space-x-4">
@@ -142,9 +154,21 @@ export default function Header() {
                 <Link href="/contact" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                   Contact
                 </Link>
-                <Link href="/admin" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
-                  Admin
-                </Link>
+                {user && user.role === 'admin' && (
+                  <Link href="/admin" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                    Admin
+                  </Link>
+                )}
+                {user && user.role === 'driver' && (
+                  <Link href="/driver" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                    Driver
+                  </Link>
+                )}
+                {user && user.role === 'customer' && (
+                  <Link href="/orders" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                    Orders
+                  </Link>
+                )}
               </div>
             </div>
           )}

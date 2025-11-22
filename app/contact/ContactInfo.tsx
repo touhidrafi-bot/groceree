@@ -36,7 +36,7 @@ export default function ContactInfo() {
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">Email</h3>
-              <p className="text-gray-600">hello@groceree.com</p>
+              <p className="text-gray-600">groceree@outlook.com</p>
               <p className="text-sm text-gray-500 mt-1">We'll respond within 24 hours</p>
             </div>
           </div>
@@ -61,8 +61,8 @@ export default function ContactInfo() {
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">Delivery Area</h3>
-              <p className="text-gray-600">We deliver within 10km of downtown Vancouver</p>
-              <p className="text-sm text-gray-500 mt-1">Free delivery on orders over $50</p>
+              <p className="text-gray-600">We deliver within Vancouver and nearby areas</p>
+              <p className="text-sm text-gray-500 mt-1">Free delivery on 1st 3 orders upon promo code use</p>
             </div>
           </div>
         </div>

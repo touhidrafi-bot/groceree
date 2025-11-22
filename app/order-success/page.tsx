@@ -129,7 +129,7 @@ function OrderSuccessContent() {
   // Format delivery time display
   const formatDeliveryTime = () => {
     if (!orderDetails?.delivery_date || !orderDetails?.delivery_time_slot) {
-      return '2-4 hours';
+      return 'Next available slot';
     }
 
     const deliveryDate = new Date(orderDetails.delivery_date);

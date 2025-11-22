@@ -41,7 +41,7 @@ class CartStore {
   private items: CartItem[] = [];
   private deliveryInfo: DeliveryInfo = {
     postalCode: '',
-    estimatedTime: '2-4 hours',
+    estimatedTime: 'Next available slot',
     fee: 5.00
   };
   private appliedPromo: PromoCode | null = null;
@@ -377,7 +377,7 @@ class CartStore {
     this.deliveryInfo.postalCode = postalCode;
     
     // Set flat delivery fee and standard time for all locations
-    this.deliveryInfo.estimatedTime = '2-4 hours';
+    this.deliveryInfo.estimatedTime = 'Next available slot';
     this.deliveryInfo.fee = 5.00;
     
     this.saveToStorage();

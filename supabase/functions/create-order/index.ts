@@ -45,6 +45,7 @@ serve(async (req) => {
     const cartItems = requestBody.cartItems || orderData.cartItems || []
 
     console.log('Order data extracted:', orderData)
+    console.log('TIP AMOUNT FROM orderData:', orderData.tipAmount)
     console.log('Cart items extracted:', cartItems)
 
     // Validate delivery slot structure with safe access and fallbacks
@@ -248,6 +249,7 @@ serve(async (req) => {
     }
 
     console.log('Order insert data:', orderInsertData)
+    console.log('TIP AMOUNT IN INSERT DATA:', orderInsertData.tip_amount)
 
     // Insert order
     const { data: order, error: orderError } = await supabaseClient

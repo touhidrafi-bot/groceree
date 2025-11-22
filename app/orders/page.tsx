@@ -507,7 +507,7 @@ function OrderStatusContent() {
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span className="text-blue-700">Estimated Delivery</span>
-                    <span className="font-medium text-blue-900">2-4 hours</span>
+                    <span className="font-medium text-blue-900">Next Available Slot</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-blue-700">Order Status</span>

@@ -45,7 +45,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [total, setTotal] = useState(0);
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     postalCode: '',
-    estimatedTime: '2-4 hours',
+    estimatedTime: 'Next available slot',
     fee: 5.00
   });
   const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
@@ -86,6 +86,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     try {
+      // Get current local cart items before syncing
+      const localItems = cartStore.getItems();
+
       const { data: cartItems, error } = await supabase
         .from('carts')
         .select(`
@@ -99,26 +102,67 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      cartStore.clearCart();
-      
+      // Create a map of local items for easy lookup
+      const localItemMap = new Map(localItems.map(item => [item.id, item]));
+      const databaseItemMap = new Map();
+
+      // Process database items
       cartItems?.forEach(cartItem => {
         if (cartItem.products) {
-          cartStore.addItem({
-            id: cartItem.products.id,
-            name: cartItem.products.name,
-            image: cartItem.products.image_url,
-            price: cartItem.products.price,
-            originalPrice: cartItem.products.original_price,
-            unit: cartItem.products.unit,
-            category: cartItem.products.category,
-            isOrganic: cartItem.products.is_organic,
-            inStock: cartItem.products.in_stock || cartItem.products.stock_quantity,
-            sku: cartItem.products.sku,
-            scalable: cartItem.products.scalable,
-            taxType: cartItem.products.tax_type || 'none'
-          }, cartItem.quantity);
+          databaseItemMap.set(cartItem.products.id, {
+            product: {
+              id: cartItem.products.id,
+              name: cartItem.products.name,
+              image: cartItem.products.image_url,
+              price: cartItem.products.price,
+              originalPrice: cartItem.products.original_price,
+              unit: cartItem.products.unit,
+              category: cartItem.products.category,
+              isOrganic: cartItem.products.is_organic,
+              inStock: cartItem.products.in_stock || cartItem.products.stock_quantity,
+              sku: cartItem.products.sku,
+              scalable: cartItem.products.scalable,
+              taxType: cartItem.products.tax_type || 'none'
+            },
+            quantity: cartItem.quantity
+          });
         }
       });
+
+      // Clear cart and rebuild with merged items
+      cartStore.clearCart();
+
+      // Add local items first (they have priority)
+      localItems.forEach(item => {
+        cartStore.addItem({
+          id: item.id,
+          name: item.name,
+          image: item.image,
+          price: item.price,
+          originalPrice: item.originalPrice,
+          unit: item.unit,
+          category: item.category,
+          isOrganic: item.isOrganic,
+          inStock: item.inStock,
+          sku: item.sku,
+          scalable: item.scalable,
+          taxType: item.taxType || 'none'
+        }, item.quantity);
+      });
+
+      // Add database items that aren't in local cart (to preserve past items)
+      databaseItemMap.forEach((item, productId) => {
+        if (!localItemMap.has(productId)) {
+          cartStore.addItem(item.product, item.quantity);
+        }
+      });
+
+      // Sync local items to database for persistence
+      for (const localItem of localItems) {
+        if (isValidUUID(localItem.id)) {
+          await addItemToDatabase(localItem.id, localItem.quantity);
+        }
+      }
     } catch (error) {
       console.error('Error syncing cart with database:', error);
     }
@@ -272,6 +316,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         paymentMethod: orderData?.paymentMethod || 'interac',
         deliveryFee: typeof deliveryFee === 'number' ? parseFloat(deliveryFee.toFixed(2)) : 5.00,
         discount: typeof discount === 'number' ? parseFloat(discount.toFixed(2)) : 0,
+        tipAmount: typeof orderData?.tipAmount === 'number' ? parseFloat(Number(orderData.tipAmount).toFixed(2)) : 0,
         deliverySlot: deliverySlot,
         customerInfo: {
           email: userEmail,
@@ -288,14 +333,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         tax: tax.toFixed(2),
         deliveryFee: deliveryFee.toFixed(2),
         discount: discount.toFixed(2),
+        tipAmount: completeOrderData.tipAmount || 0,
         appliedPromoCode: appliedPromo?.code || 'None',
         discountType: appliedPromo?.discount_type || 'None',
-        total: completeOrderData.discount ? (subtotal + tax + deliveryFee - discount).toFixed(2) : (subtotal + tax + deliveryFee).toFixed(2),
+        total: completeOrderData.discount ? (subtotal + tax + deliveryFee - discount + (completeOrderData.tipAmount || 0)).toFixed(2) : (subtotal + tax + deliveryFee + (completeOrderData.tipAmount || 0)).toFixed(2),
       });
 
       console.log('📤 Complete Order Data:', {
         orderData: completeOrderData,
         cartItems: itemsToUse,
+        tipAmountFromOrderData: completeOrderData.tipAmount,
       });
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-order`, {

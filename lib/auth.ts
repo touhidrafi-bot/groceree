@@ -184,7 +184,7 @@ class AuthService {
     }
   }
 
-  async signIn(email: string, password: string) {
+  async signIn(email: string, password: string, rememberMe: boolean = false) {
     try {
       this.setState({ loading: true, error: null });
 
@@ -199,9 +199,43 @@ class AuthService {
 
       if (error) throw error;
 
+      if (rememberMe) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('sb-remember-me', 'true');
+          localStorage.setItem('sb-remember-me-timestamp', new Date().toISOString());
+        }
+      }
+
       return { success: true, message: 'Signed in successfully!' };
     } catch (error: any) {
       const message = error.message || 'Failed to sign in';
+      this.setState({ error: message });
+      return { success: false, message };
+    } finally {
+      this.setState({ loading: false });
+    }
+  }
+
+  async resetPassword(email: string) {
+    try {
+      this.setState({ loading: true, error: null });
+
+      if (!SUPABASE_CONFIGURED) {
+        throw new Error('Supabase is not configured. Please contact support.');
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/reset-password`
+      });
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        message: 'Password reset link sent! Check your email for instructions.'
+      };
+    } catch (error: any) {
+      const message = error.message || 'Failed to send reset email';
       this.setState({ error: message });
       return { success: false, message };
     } finally {

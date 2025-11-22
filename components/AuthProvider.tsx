@@ -5,9 +5,10 @@ import { authService, AuthState, User } from '../lib/auth';
 
 interface AuthContextType extends AuthState {
   signUp: (userData: any) => Promise<{ success: boolean; message: string }>;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
+  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; message: string }>;
   signOut: () => Promise<{ success: boolean; message: string }>;
   updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; message: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
   hasRole: (role: string) => boolean;
   hasAnyRole: (roles: string[]) => boolean;
 }
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signIn: authService.signIn.bind(authService),
     signOut: authService.signOut.bind(authService),
     updateProfile: authService.updateProfile.bind(authService),
+    resetPassword: authService.resetPassword.bind(authService),
     hasRole: authService.hasRole.bind(authService),
     hasAnyRole: authService.hasAnyRole.bind(authService)
   };

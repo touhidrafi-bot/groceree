@@ -10,15 +10,16 @@ import ReaddyWidget from '../components/ReaddyWidget';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
+    metadataBase: new URL("https://www.groceree.ca"), // <-- your production domain
   title: 'Groceree - Fresh Grocery Delivery in Vancouver',
   description:
     'Get fresh, high-quality groceries delivered to your door in Vancouver, BC. Same-day delivery, best prices, and premium organic produce.',
   icons: {
-    icon: '/images/logo-favicon.jfif',
+    icon: '/images/icon.jpg',
     shortcut:
-      '/images/logo-favicon.jfif',
+      '/images/icon.jpg',
     apple:
-      '/images/logo-favicon.jfif',
+      '/images/icon.jpg',
   },
   openGraph: {
     title: 'Groceree - Fresh Grocery Delivery in Vancouver',

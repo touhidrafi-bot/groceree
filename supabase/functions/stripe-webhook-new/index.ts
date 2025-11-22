@@ -50,4 +50,3 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: String(err) }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
-

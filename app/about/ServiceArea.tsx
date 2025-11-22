@@ -28,7 +28,7 @@ export default function ServiceArea() {
                 <h3 className="text-2xl font-semibold text-gray-900">Vancouver Coverage</h3>
               </div>
               <p className="text-gray-600 mb-6">
-                Currently serving Vancouver and surrounding areas within a 10km radius. 
+                Currently serving Vancouver and surrounding areas. 
                 We're expanding our delivery zones based on community demand.
               </p>
               <div className="grid grid-cols-2 gap-4 text-sm">
