@@ -10,10 +10,6 @@ interface OrderDetails {
   order_number: string;
   total: number;
   tip_amount?: number;
-  subtotal: number;
-  tax: number;
-  delivery_fee: number;
-  discount: number;
   payment_method: string;
   payment_status: string;
   status: string;
@@ -21,13 +17,6 @@ interface OrderDetails {
   delivery_time_slot: string;
   delivery_address: string;
   created_at: string;
-  order_items?: Array<{
-    id: string;
-    quantity: number;
-    unit_price: number;
-    total_price: number;
-    products?: { name: string };
-  }>;
 }
 
 function OrderSuccessContent() {
@@ -98,7 +87,7 @@ function OrderSuccessContent() {
           }
         }
 
-        // Fetch order details from database (include tip_amount and order items for bottle deposits)
+        // Fetch order details from database (include tip_amount)
         const { data: order, error: orderError } = await supabase
           .from('orders')
           .select(`
@@ -106,24 +95,13 @@ function OrderSuccessContent() {
             order_number,
             total,
             tip_amount,
-            subtotal,
-            tax,
-            delivery_fee,
-            discount,
             payment_method,
             payment_status,
             status,
             delivery_date,
             delivery_time_slot,
             delivery_address,
-            created_at,
-            order_items(
-              id,
-              quantity,
-              unit_price,
-              total_price,
-              products(name)
-            )
+            created_at
           `)
           .eq('id', orderId)
           .eq('customer_id', session.user.id)
@@ -281,50 +259,22 @@ function OrderSuccessContent() {
               </span>
             </div>
           )}
-
+          
           {(orderDetails?.total || total) && (
             <div className="flex flex-col space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Product Subtotal</span>
-                <span className="text-gray-900">${Number(orderDetails?.subtotal || 0).toFixed(2)}</span>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600 font-medium">Order Total</span>
+                <span className="font-bold text-gray-900 text-xl">
+                  ${(orderDetails?.total || parseFloat(total || '0')).toFixed(2)}
+                </span>
               </div>
 
-              {Number(orderDetails?.tax || 0) > 0 && (
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Tax</span>
-                  <span className="text-gray-900">${Number(orderDetails?.tax || 0).toFixed(2)}</span>
-                </div>
-              )}
-
-              {Number(orderDetails?.delivery_fee || 0) > 0 && (
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Delivery Fee</span>
-                  <span className="text-gray-900">${Number(orderDetails?.delivery_fee || 5).toFixed(2)}</span>
-                </div>
-              )}
-
-              {Number(orderDetails?.discount || 0) > 0 && (
-                <div className="flex justify-between items-center text-sm text-green-600">
-                  <span>Discount</span>
-                  <span>-${Number(orderDetails?.discount || 0).toFixed(2)}</span>
-                </div>
-              )}
-
               {(orderDetails?.tip_amount || 0) > 0 && (
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Tip</span>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600 font-medium">Tip</span>
                   <span className="text-gray-900 font-medium">${Number(orderDetails?.tip_amount || 0).toFixed(2)}</span>
                 </div>
               )}
-
-              <div className="border-t border-gray-200 pt-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 font-medium">Order Total</span>
-                  <span className="font-bold text-gray-900 text-xl">
-                    ${(orderDetails?.total || parseFloat(total || '0')).toFixed(2)}
-                  </span>
-                </div>
-              </div>
             </div>
           )}
 

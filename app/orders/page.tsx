@@ -832,40 +832,10 @@ function OrderStatusContent() {
                       );
                       })}
                     </div>
-                    <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
-                      {selectedOrder.subtotal > 0 && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Product Subtotal</span>
-                          <span>${selectedOrder.subtotal.toFixed(2)}</span>
-                        </div>
-                      )}
-
-                      {selectedOrder.tax > 0 && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Tax</span>
-                          <span>${selectedOrder.tax.toFixed(2)}</span>
-                        </div>
-                      )}
-
-                      {selectedOrder.delivery_fee > 0 && (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-gray-600">Delivery Fee</span>
-                          <span>${selectedOrder.delivery_fee.toFixed(2)}</span>
-                        </div>
-                      )}
-
-                      {selectedOrder.discount > 0 && (
-                        <div className="flex justify-between items-center text-sm text-green-600">
-                          <span>Discount</span>
-                          <span>-${selectedOrder.discount.toFixed(2)}</span>
-                        </div>
-                      )}
-
-                      <div className="border-t border-gray-200 pt-2">
-                        <div className="flex justify-between items-center text-lg font-bold">
-                          <span>Total</span>
-                          <span>${parseFloat(selectedOrder.total.toString()).toFixed(2)}</span>
-                        </div>
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex justify-between items-center text-lg font-bold">
+                        <span>Total</span>
+                        <span>${parseFloat(selectedOrder.total.toString()).toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
