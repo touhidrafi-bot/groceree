@@ -77,6 +77,7 @@ serve(async (req) => {
       product_id: item.product_id,
       quantity: item.quantity,
       unit_price: item.unit_price,
+      bottle_price: item.bottle_price || 0,
       total_price: item.total_price,
       final_weight: item.final_weight || null
     }))

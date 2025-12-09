@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/auth';
+import { supabase, SUPABASE_CONFIGURED } from '../lib/auth';
 
 interface DeliverySlot {
   id: string;
@@ -35,6 +34,26 @@ interface DeliveryWindow {
   max_deliveries: number;
 }
 
+function getVancouverDate(offsetDays = 0): string {
+  const now = new Date();
+
+  const parts = Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Vancouver",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const year = parseInt(parts.find(p => p.type === "year")!.value);
+  const month = parseInt(parts.find(p => p.type === "month")!.value);
+  const day = parseInt(parts.find(p => p.type === "day")!.value);
+
+  const base = new Date(Date.UTC(year, month - 1, day));
+  base.setUTCDate(base.getUTCDate() + offsetDays);
+
+  return base.toISOString().split("T")[0];
+}
+
 export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: DeliverySchedulerProps) {
   const [availableSlots, setAvailableSlots] = useState<DeliverySlot[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -54,6 +73,18 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
 
   const loadSettings = async () => {
     try {
+      if (!SUPABASE_CONFIGURED) {
+        console.warn('Supabase not configured; using default delivery settings and windows.');
+        // Provide sensible defaults and avoid running queries
+        setSettings({ cutoff_time: '13:00:00', max_deliveries_per_slot: 15 });
+        setWindows([
+          { id: '1', name: 'morning', start_time: '11:00:00', end_time: '15:00:00', display_name: '11:00 AM - 3:00 PM', is_active: true, sort_order: 1, max_deliveries: 0 },
+          { id: '2', name: 'afternoon', start_time: '15:00:00', end_time: '19:00:00', display_name: '3:00 PM - 7:00 PM', is_active: true, sort_order: 2, max_deliveries: 0 },
+          { id: '3', name: 'evening', start_time: '19:00:00', end_time: '23:00:00', display_name: '7:00 PM - 11:00 PM', is_active: true, sort_order: 3, max_deliveries: 0 }
+        ]);
+        setLoading(false);
+        return;
+      }
       // Load delivery settings
       const { data: settingsData, error: settingsError } = await supabase
         .from('delivery_settings')
@@ -61,12 +92,9 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
         .single();
 
       if (settingsError && settingsError.code !== 'PGRST116') {
-        console.error('Error loading settings:', settingsError);
+        console.error('Error loading settings:', JSON.stringify(settingsError));
         // Use default settings if none exist
-        setSettings({
-          cutoff_time: '13:00:00',
-          max_deliveries_per_slot: 15
-        });
+        setSettings({ cutoff_time: '13:00:00', max_deliveries_per_slot: 15 });
       } else if (settingsData) {
         setSettings(settingsData);
       }
@@ -79,39 +107,12 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
         .order('start_time', { ascending: true });
 
       if (windowsError) {
-        console.error('Error loading windows:', windowsError);
+        console.error('Error loading windows:', JSON.stringify(windowsError));
         // Use default windows if none exist - sorted by time
         setWindows([
-          {
-            id: '1',
-            name: 'morning',
-            start_time: '11:00:00',
-            end_time: '15:00:00',
-            display_name: '11:00 AM - 3:00 PM',
-            is_active: true,
-            sort_order: 1,
-            max_deliveries: 0
-          },
-          {
-            id: '2',
-            name: 'afternoon',
-            start_time: '15:00:00',
-            end_time: '19:00:00',
-            display_name: '3:00 PM - 7:00 PM',
-            is_active: true,
-            sort_order: 2,
-            max_deliveries: 0
-          },
-          {
-            id: '3',
-            name: 'evening',
-            start_time: '19:00:00',
-            end_time: '23:00:00',
-            display_name: '7:00 PM - 11:00 PM',
-            is_active: true,
-            sort_order: 3,
-            max_deliveries: 0
-          }
+          { id: '1', name: 'morning', start_time: '11:00:00', end_time: '15:00:00', display_name: '11:00 AM - 3:00 PM', is_active: true, sort_order: 1, max_deliveries: 0 },
+          { id: '2', name: 'afternoon', start_time: '15:00:00', end_time: '19:00:00', display_name: '3:00 PM - 7:00 PM', is_active: true, sort_order: 2, max_deliveries: 0 },
+          { id: '3', name: 'evening', start_time: '19:00:00', end_time: '23:00:00', display_name: '7:00 PM - 11:00 PM', is_active: true, sort_order: 3, max_deliveries: 0 }
         ]);
       } else {
         // Sort windows by start_time to ensure consistent ordering
@@ -121,7 +122,7 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
         setWindows(sortedWindows);
       }
     } catch (error) {
-      console.error('Error loading delivery configuration:', error);
+      console.error('Error loading delivery configuration:', error && typeof error === 'object' ? JSON.stringify(error) : String(error));
       // Set defaults
       setSettings({
         cutoff_time: '13:00:00',
@@ -185,14 +186,22 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
 
   const generateAvailableSlots = async () => {
     if (!settings || windows.length === 0) return;
-    
+
     setLoading(true);
-    
-    // Use Vancouver timezone
+
     const now = new Date();
-    const vancouverTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Vancouver"}));
-    const currentHour = vancouverTime.getHours();
-    const currentMinute = vancouverTime.getMinutes();
+    const parts = Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Vancouver",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+
+    const hourStr = parts.find(p => p.type === "hour")?.value || "0";
+    const minuteStr = parts.find(p => p.type === "minute")?.value || "0";
+    const currentHour = parseInt(hourStr);
+    const currentMinute = parseInt(minuteStr);
+
     const slots: DeliverySlot[] = [];
 
     // Parse cutoff time
@@ -205,21 +214,20 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
 
     // Same-day slots (if before cutoff time Vancouver time)
     if (canDeliverToday) {
-      const today = new Date(vancouverTime);
-      const todayStr = today.toISOString().split('T')[0];
-      
+      const todayStr = getVancouverDate(0);
+
       // Sort windows by start_time for consistent ordering
       const sortedWindows = [...windows].sort((a, b) => a.start_time.localeCompare(b.start_time));
-      
+
       for (const window of sortedWindows) {
         const [startHour] = window.start_time.split(':').map(Number);
-        
+
         // Only show slots that haven't started yet
         if (currentHour < startHour) {
           const timeSlot = `${window.start_time.slice(0,5)}-${window.end_time.slice(0,5)}`;
           const used = await checkSlotCapacity(todayStr, timeSlot);
           const maxCapacity = window.max_deliveries || settings.max_deliveries_per_slot;
-          
+
           slots.push({
             id: `${todayStr}-${window.id}`,
             date: todayStr,
@@ -234,9 +242,7 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
     }
 
     // Next-day slots
-    const tomorrow = new Date(vancouverTime);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const tomorrowStr = getVancouverDate(1);
 
     // Sort windows by start_time for consistent ordering
     const sortedWindows = [...windows].sort((a, b) => a.start_time.localeCompare(b.start_time));
@@ -245,7 +251,7 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
       const timeSlot = `${window.start_time.slice(0,5)}-${window.end_time.slice(0,5)}`;
       const used = await checkSlotCapacity(tomorrowStr, timeSlot);
       const maxCapacity = window.max_deliveries || settings.max_deliveries_per_slot;
-      
+
       slots.push({
         id: `${tomorrowStr}-${window.id}`,
         date: tomorrowStr,
@@ -258,15 +264,13 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
     }
 
     // Day after tomorrow slots
-    const dayAfter = new Date(vancouverTime);
-    dayAfter.setDate(dayAfter.getDate() + 2);
-    const dayAfterStr = dayAfter.toISOString().split('T')[0];
+    const dayAfterStr = getVancouverDate(2);
 
     for (const window of sortedWindows) {
       const timeSlot = `${window.start_time.slice(0,5)}-${window.end_time.slice(0,5)}`;
       const used = await checkSlotCapacity(dayAfterStr, timeSlot);
       const maxCapacity = window.max_deliveries || settings.max_deliveries_per_slot;
-      
+
       slots.push({
         id: `${dayAfterStr}-${window.id}`,
         date: dayAfterStr,
@@ -279,33 +283,28 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
     }
 
     setAvailableSlots(slots);
-    
+
     // Set default selected date
     if (slots.length > 0) {
       setSelectedDate(slots[0].date);
     }
-    
+
     setLoading(false);
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + 'T00:00:00');
-    const vancouverTime = new Date();
-    const today = new Date(vancouverTime.toLocaleString("en-US", {timeZone: "America/Vancouver"}));
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    
+    const todayStr = getVancouverDate(0);
+    const tomorrowStr = getVancouverDate(1);
+
     if (dateStr === todayStr) {
       return 'Today';
     } else if (dateStr === tomorrowStr) {
       return 'Tomorrow';
     } else {
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        month: 'short', 
+      const date = new Date(dateStr + 'T00:00:00');
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
         day: 'numeric',
         timeZone: 'America/Vancouver'
       });

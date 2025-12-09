@@ -27,6 +27,7 @@ interface Order {
     unit_price: number;
     total_price: number;
     final_weight?: number;
+    bottle_price?: number;
     products: {
       id: string;
       name: string;
@@ -35,6 +36,7 @@ interface Order {
       scalable: boolean;
       in_stock: number;
       tax_type?: 'none' | 'gst' | 'gst_pst';
+      bottle_price?: number;
     };
   }[];
 }
@@ -43,12 +45,17 @@ interface Product {
   id: string;
   name: string;
   price: number;
+  bottle_price?: number;
   image_url: string;
   unit: string;
   scalable: boolean;
   in_stock: number;
   category: string;
   tax_type?: 'none' | 'gst' | 'gst_pst';
+}
+
+interface ImageErrorState {
+  [key: string]: boolean;
 }
 
 function OrderStatusContent() {
@@ -64,6 +71,11 @@ function OrderStatusContent() {
   const [_editingItems, _setEditingItems] = useState<{[key: string]: any}>({});
   const [savingChanges, setSavingChanges] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [imageErrors, setImageErrors] = useState<ImageErrorState>({});
+
+  const handleImageError = (imageKey: string) => {
+    setImageErrors(prev => ({ ...prev, [imageKey]: true }));
+  };
   
   const orderId = searchParams.get('orderId');
   const orderNumber = searchParams.get('orderNumber');
@@ -641,14 +653,23 @@ function OrderStatusContent() {
                   <div className="lg:col-span-2">
                     <h4 className="font-medium text-gray-900 mb-3">Items ({order.order_items?.length || 0})</h4>
                     <div className="space-y-3">
-                      {order.order_items?.slice(0, 3).map((item, index) => (
+                      {order.order_items?.slice(0, 3).map((item, index) => {
+                        const imageKey = `order-${order.id}-item-${index}`;
+                        return (
                         <div key={index} className="flex items-center space-x-3">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                                src={item.products?.image_url}
-                                alt={item.products?.name}
-                                className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2"
-                              />
+                          {imageErrors[imageKey] ? (
+                            <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <i className="ri-image-line text-lg text-gray-400"></i>
+                            </div>
+                          ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                                  src={item.products?.image_url}
+                                  alt={item.products?.name}
+                                  className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2 flex-shrink-0"
+                                  onError={() => handleImageError(imageKey)}
+                                />
+                          )}
                           <div className="flex-1">
                             <div className="font-medium text-gray-900 text-sm">
                               {item.products?.name}
@@ -656,12 +677,18 @@ function OrderStatusContent() {
                             <div className="text-gray-500 text-xs">
                               {item.quantity} {item.products?.unit} × ${item.unit_price.toFixed(2)}
                             </div>
+                            {(item.bottle_price || item.products?.bottle_price) ? (
+                              <div className="text-blue-600 text-xs mt-1">
+                                Bottle: ${(((item.bottle_price || item.products?.bottle_price) ?? 0) * item.quantity).toFixed(2)}
+                              </div>
+                            ) : null}
                           </div>
                           <div className="font-medium text-gray-900 text-sm">
-                            ${(item.quantity * item.unit_price).toFixed(2)}
+                            ${((item.quantity * item.unit_price) + ((item.bottle_price || item.products?.bottle_price || 0) * item.quantity)).toFixed(2)}
                           </div>
                         </div>
-                      ))}
+                      );
+                      })}
                       {(order.order_items?.length || 0) > 3 && (
                         <div className="text-sm text-gray-500 text-center py-2">
                           +{(order.order_items?.length || 0) - 3} more items
@@ -768,14 +795,23 @@ function OrderStatusContent() {
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Order Items</h3>
                     <div className="space-y-3">
-                      {selectedOrder.order_items?.map((item, index) => (
+                      {selectedOrder.order_items?.map((item, index) => {
+                        const imageKey = `selected-order-${selectedOrder.id}-item-${index}`;
+                        return (
                         <div key={index} className="flex items-center space-x-3 py-3 border-b border-gray-200">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={item.products?.image_url}
-                            alt={item.products?.name}
-                            className="w-16 h-16 object-contain bg-gray-50 rounded-lg p-2"
-                          />
+                          {imageErrors[imageKey] ? (
+                            <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <i className="ri-image-line text-xl text-gray-400"></i>
+                            </div>
+                          ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={item.products?.image_url}
+                              alt={item.products?.name}
+                              className="w-16 h-16 object-contain bg-gray-50 rounded-lg p-2 flex-shrink-0"
+                              onError={() => handleImageError(imageKey)}
+                            />
+                          )}
                           <div className="flex-1">
                             <div className="font-medium text-gray-900">
                               {item.products?.name}
@@ -783,17 +819,53 @@ function OrderStatusContent() {
                             <div className="text-gray-500 text-sm">
                               {item.quantity} {item.products?.unit} × ${item.unit_price.toFixed(2)}
                             </div>
+                            {(item.bottle_price || item.products?.bottle_price) ? (
+                              <div className="text-blue-600 text-xs mt-1">
+                                Bottle: ${(((item.bottle_price || item.products?.bottle_price) ?? 0) * item.quantity).toFixed(2)}
+                              </div>
+                            ) : null}
                           </div>
                           <div className="font-medium text-gray-900">
-                            ${(item.quantity * item.unit_price).toFixed(2)}
+                            ${((item.quantity * item.unit_price) + ((item.bottle_price || item.products?.bottle_price || 0) * item.quantity)).toFixed(2)}
                           </div>
                         </div>
-                      ))}
+                      );
+                      })}
                     </div>
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex justify-between items-center text-lg font-bold">
-                        <span>Total</span>
-                        <span>${parseFloat(selectedOrder.total.toString()).toFixed(2)}</span>
+                    <div className="mt-4 pt-4 border-t border-gray-200 space-y-2">
+                      {selectedOrder.subtotal > 0 && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Product Subtotal</span>
+                          <span>${selectedOrder.subtotal.toFixed(2)}</span>
+                        </div>
+                      )}
+
+                      {selectedOrder.tax > 0 && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Tax</span>
+                          <span>${selectedOrder.tax.toFixed(2)}</span>
+                        </div>
+                      )}
+
+                      {selectedOrder.delivery_fee > 0 && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Delivery Fee</span>
+                          <span>${selectedOrder.delivery_fee.toFixed(2)}</span>
+                        </div>
+                      )}
+
+                      {selectedOrder.discount > 0 && (
+                        <div className="flex justify-between items-center text-sm text-green-600">
+                          <span>Discount</span>
+                          <span>-${selectedOrder.discount.toFixed(2)}</span>
+                        </div>
+                      )}
+
+                      <div className="border-t border-gray-200 pt-2">
+                        <div className="flex justify-between items-center text-lg font-bold">
+                          <span>Total</span>
+                          <span>${parseFloat(selectedOrder.total.toString()).toFixed(2)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -827,14 +899,23 @@ function OrderStatusContent() {
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Items</h3>
                     <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {editingOrder.order_items.map((item, _index) => (
+                      {editingOrder.order_items.map((item, _index) => {
+                        const imageKey = `edit-order-${editingOrder.id}-item-${item.id}`;
+                        return (
                         <div key={item.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={item.products?.image_url}
-                            alt={item.products?.name}
-                            className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2"
-                          />
+                          {imageErrors[imageKey] ? (
+                            <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <i className="ri-image-line text-lg text-gray-400"></i>
+                            </div>
+                          ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={item.products?.image_url}
+                              alt={item.products?.name}
+                              className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2 flex-shrink-0"
+                              onError={() => handleImageError(imageKey)}
+                            />
+                          )}
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-gray-900 text-sm truncate">
                               {item.products?.name}
@@ -865,7 +946,8 @@ function OrderStatusContent() {
                             </button>
                           </div>
                         </div>
-                      ))}
+                      );
+                      })}
                     </div>
 
                     {/* Order Summary */}
@@ -964,12 +1046,19 @@ function OrderStatusContent() {
                           
                           return (
                             <div key={product.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                  src={product.image_url}
-                                  alt={product.name}
-                                  className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2"
-                                />
+                              {imageErrors[`product-${product.id}`] ? (
+                                <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <i className="ri-image-line text-lg text-gray-400"></i>
+                                </div>
+                              ) : (
+                                /* eslint-disable-next-line @next/next/no-img-element */
+                                <img
+                                    src={product.image_url}
+                                    alt={product.name}
+                                    className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2 flex-shrink-0"
+                                    onError={() => handleImageError(`product-${product.id}`)}
+                                  />
+                              )}
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium text-gray-900 text-sm truncate">
                                   {product.name}

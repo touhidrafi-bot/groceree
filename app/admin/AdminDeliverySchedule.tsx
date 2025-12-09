@@ -129,51 +129,106 @@ export default function AdminDeliverySchedule() {
   };
 
   const updateSettings = async (newSettings: Partial<DeliverySettings>) => {
-    if (!settings) return;
+  if (!settings) return;
 
-    try {
-      const { error } = await supabase.from('delivery_settings').update(newSettings).eq('id', settings.id);
-      if (error) throw error;
-      setSettings({ ...settings, ...newSettings });
-    } catch (error) {
-      console.error('Error updating settings:', error);
+  // REMOVE invalid time fields before sending to DB
+  const cleaned = { ...newSettings };
+
+  if (cleaned.cutoff_time === "") {
+    delete cleaned.cutoff_time;
+  }
+
+  // Normalize cutoff_time to include seconds if browser returns HH:MM
+  if (cleaned.cutoff_time && typeof cleaned.cutoff_time === 'string') {
+    const parts = cleaned.cutoff_time.split(':');
+    if (parts.length === 2) {
+      // Add seconds component
+      cleaned.cutoff_time = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}:00`;
     }
-  };
+  }
+
+  try {
+    const { error } = await supabase
+      .from('delivery_settings')
+      .update(cleaned)
+      .eq('id', settings.id);
+
+    if (error) {
+      console.error('Supabase error updating settings:', error);
+      throw new Error(error.message);
+    }
+
+    setSettings({ ...settings, ...cleaned });
+  } catch (error) {
+    let errorMessage = 'Error updating settings';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null && 'message' in error) {
+      errorMessage = (error as any).message;
+    } else {
+      errorMessage = String(error);
+    }
+    console.error('Error updating settings:', errorMessage);
+    alert(`Error updating settings: ${errorMessage}`);
+  }
+};
+
 
   const saveWindow = async (windowData: Omit<DeliveryWindow, 'id'>) => {
     try {
       if (editingWindow) {
         const { error } = await supabase.from('delivery_windows').update(windowData).eq('id', editingWindow.id);
-        if (error) throw error;
+        if (error) throw new Error(error.message || 'Failed to update time window');
       } else {
         const { error } = await supabase.from('delivery_windows').insert(windowData);
-        if (error) throw error;
+        if (error) throw new Error(error.message || 'Failed to create time window');
       }
       await loadWindows();
       setShowWindowModal(false);
       setEditingWindow(null);
     } catch (error) {
-      console.error('Error saving window:', error);
+      let errorMessage = 'Failed to save time window';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        errorMessage = (error as any).message;
+      }
+      console.error('Error saving window:', errorMessage);
+      alert(`Error saving time window: ${errorMessage}`);
     }
   };
 
   const deleteWindow = async (id: string) => {
     try {
       const { error } = await supabase.from('delivery_windows').delete().eq('id', id);
-      if (error) throw error;
+      if (error) throw new Error(error.message || 'Failed to delete time window');
       await loadWindows();
     } catch (error) {
-      console.error('Error deleting window:', error);
+      let errorMessage = 'Failed to delete time window';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        errorMessage = (error as any).message;
+      }
+      console.error('Error deleting window:', errorMessage);
+      alert(`Error deleting time window: ${errorMessage}`);
     }
   };
 
   const toggleWindowStatus = async (id: string, isActive: boolean) => {
     try {
       const { error } = await supabase.from('delivery_windows').update({ is_active: !isActive }).eq('id', id);
-      if (error) throw error;
+      if (error) throw new Error(error.message || 'Failed to update window status');
       await loadWindows();
     } catch (error) {
-      console.error('Error toggling window status:', error);
+      let errorMessage = 'Failed to update window status';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null && 'message' in error) {
+        errorMessage = (error as any).message;
+      }
+      console.error('Error toggling window status:', errorMessage);
+      alert(`Error updating window status: ${errorMessage}`);
     }
   };
 

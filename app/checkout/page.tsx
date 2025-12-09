@@ -36,6 +36,45 @@ interface DeliverySlot {
   used: number;
 }
 
+function getVancouverDateForCheckout(offsetDays = 0): string {
+  const now = new Date();
+
+  const parts = Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Vancouver",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+
+  const year = parseInt(parts.find(p => p.type === "year")!.value);
+  const month = parseInt(parts.find(p => p.type === "month")!.value);
+  const day = parseInt(parts.find(p => p.type === "day")!.value);
+
+  const base = new Date(Date.UTC(year, month - 1, day));
+  base.setUTCDate(base.getUTCDate() + offsetDays);
+
+  return base.toISOString().split("T")[0];
+}
+
+function getCheckoutDeliveryDateLabel(dateStr: string): string {
+  const todayStr = getVancouverDateForCheckout(0);
+  const tomorrowStr = getVancouverDateForCheckout(1);
+
+  if (dateStr === todayStr) {
+    return 'Today';
+  } else if (dateStr === tomorrowStr) {
+    return 'Tomorrow';
+  } else {
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'America/Vancouver'
+    });
+  }
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
@@ -669,7 +708,7 @@ export default function CheckoutPage() {
               {currentStep >= 3 && (
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
                   <h2 className="text-xl font-semibold text-gray-900 mb-2">Add a Tip</h2>
-                  <p className="text-gray-600 text-sm mb-4">Show your appreciation for excellent service (optional)</p>
+                  <p className="text-gray-600 text-sm mb-4">Tips are optional — service stays exceptional</p>
 
                   <div className="space-y-4">
                     <div className="grid grid-cols-3 gap-3">
@@ -884,28 +923,55 @@ export default function CheckoutPage() {
               {/* Items */}
               <div className="space-y-3 mb-6 max-h-60 overflow-y-auto">
                 {items.map(item => (
-                  <div key={item.id} className="flex items-center space-x-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.image} alt={item.name} className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2" />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-900 text-sm truncate">{item.name}</div>
-                      <div className="text-gray-500 text-xs">
-                        {item.quantity} × ${item.price.toFixed(2)}
+                  <div key={item.id} className="space-y-1">
+                    <div className="flex items-center space-x-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.image} alt={item.name} className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 text-sm truncate">{item.name}</div>
+                        <div className="text-gray-500 text-xs">
+                          {item.quantity} × ${item.price.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="font-medium text-gray-900 text-sm">
+                        ${(item.price * item.quantity).toFixed(2)}
                       </div>
                     </div>
-                    <div className="font-medium text-gray-900 text-sm">
-                      ${(item.price * item.quantity).toFixed(2)}
-                    </div>
+                    {item.bottle_price && item.bottle_price > 0 && (
+                      <div className="flex justify-end text-xs text-blue-600 pl-15">
+                        Bottle: ${(item.bottle_price * item.quantity).toFixed(2)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
 
               {/* Totals */}
               <div className="space-y-4 mb-6">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal ({itemCount} items)</span>
-                  <span>${subtotal.toFixed(2)}</span>
-                </div>
+                {(() => {
+                  const bottleSales = items.reduce((total, item) => total + ((item.bottle_price || 0) * item.quantity), 0);
+                  const productSubtotal = subtotal - bottleSales;
+                  return (
+                    <>
+                      <div className="flex justify-between text-gray-600">
+                        <span>Product Subtotal ({itemCount} items)</span>
+                        <span>${productSubtotal.toFixed(2)}</span>
+                      </div>
+                      {bottleSales > 0 && (
+                        <div className="flex justify-between text-blue-600">
+                          <span>Bottle Sales/Deposits</span>
+                          <span>${bottleSales.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {bottleSales === 0 && (
+                        <div className="flex justify-between text-gray-600 text-sm">
+                          <span>Subtotal</span>
+                          <span>${subtotal.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {discount > 0 && (
                   <div className="flex justify-between text-green-600">
@@ -970,16 +1036,7 @@ export default function CheckoutPage() {
                 </div>
                 {selectedDeliverySlot ? (
                   <div className="text-sm text-blue-800">
-                    {selectedDeliverySlot.date === new Date().toISOString().split('T')[0]
-                      ? 'Today'
-                      : selectedDeliverySlot.date ===
-                        new Date(Date.now() + 86400000).toISOString().split('T')[0]
-                        ? 'Tomorrow'
-                        : new Date(selectedDeliverySlot.date).toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                    {getCheckoutDeliveryDateLabel(selectedDeliverySlot.date)}
                     <br />
                     {selectedDeliverySlot.displayTime}
                   </div>

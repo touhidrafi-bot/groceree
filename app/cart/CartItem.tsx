@@ -16,6 +16,7 @@ interface CartItemProps {
     inStock: number;
     sku: string;
     scalable?: boolean;
+    bottle_price?: number;
   };
   onUpdateQuantity: (id: string, quantity: number) => void;
   onRemove: (id: string) => void;
@@ -25,6 +26,7 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(item.quantity.toString());
   const [isRemoving, setIsRemoving] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // Determine quantity step based on scalable property
   const getQuantityStep = (): number => {
@@ -95,12 +97,19 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
       {/* Mobile: Image and Remove Button Row */}
       <div className="flex items-start justify-between sm:hidden">
         <div className="flex-shrink-0 relative">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={item.image}
-            alt={item.name}
-            className="w-16 h-16 object-cover object-top rounded-lg"
-          />
+          {imageError ? (
+            <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
+              <i className="ri-image-line text-2xl text-gray-400"></i>
+            </div>
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={item.image}
+              alt={item.name}
+              className="w-16 h-16 object-cover object-top rounded-lg"
+              onError={() => setImageError(true)}
+            />
+          )}
           {item.isOrganic && (
             <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full">
               Organic
@@ -131,12 +140,19 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
 
       {/* Desktop: Image */}
       <div className="hidden sm:block flex-shrink-0 relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={item.image}
-          alt={item.name}
-          className="w-20 h-20 object-cover object-top rounded-lg"
-        />
+        {imageError ? (
+          <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
+            <i className="ri-image-line text-2xl text-gray-400"></i>
+          </div>
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={item.image}
+            alt={item.name}
+            className="w-20 h-20 object-cover object-top rounded-lg"
+            onError={() => setImageError(true)}
+          />
+        )}
         {item.isOrganic && (
           <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full">
             Organic
@@ -175,6 +191,13 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
             )}
             <span className="text-sm text-gray-500">per {item.unit}</span>
           </div>
+          {item.bottle_price && item.bottle_price > 0 && (
+            <div className="flex items-center space-x-1 ml-2 pl-2 border-l border-gray-200">
+              <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                Bottle: ${item.bottle_price.toFixed(2)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Stock Status */}
@@ -242,12 +265,19 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
 
         {/* Price */}
         <div className="text-right">
-          <p className="text-xs text-gray-5">
+          <p className="text-xs text-gray-500">
             {formatQuantity(item.quantity)} {item.unit}
           </p>
-          <p className="font-semibold text-gray-900 text-lg">
-            ${(item.price * item.quantity).toFixed(2)}
-          </p>
+          <div className="space-y-1">
+            <p className="font-semibold text-gray-900 text-lg">
+              ${(item.price * item.quantity).toFixed(2)}
+            </p>
+            {item.bottle_price && item.bottle_price > 0 && (
+              <p className="text-xs text-blue-600 font-medium">
+                +${(item.bottle_price * item.quantity).toFixed(2)} bottle
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -307,9 +337,16 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
           <p className="text-sm text-gray-500">
             {formatQuantity(item.quantity)} {item.unit}
           </p>
-          <p className="font-semibold text-gray-900 text-lg">
-            ${(item.price * item.quantity).toFixed(2)}
-          </p>
+          <div className="space-y-1">
+            <p className="font-semibold text-gray-900 text-lg">
+              ${(item.price * item.quantity).toFixed(2)}
+            </p>
+            {item.bottle_price && item.bottle_price > 0 && (
+              <p className="text-xs text-blue-600 font-medium">
+                +${(item.bottle_price * item.quantity).toFixed(2)} bottle
+              </p>
+            )}
+          </div>
         </div>
 
         <button

@@ -1,8 +1,44 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { supabase, SUPABASE_CONFIGURED } from '../lib/auth';
 
 export default function TestimonialsSection() {
+  const [cutoffTime, setCutoffTime] = useState('2PM');
+
+  useEffect(() => {
+    const loadCutoffTime = async () => {
+      if (!SUPABASE_CONFIGURED) {
+        console.warn('Supabase not configured; skipping cutoff time load.');
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('delivery_settings')
+          .select('cutoff_time')
+          .single();
+
+        if (error) {
+          console.error('Supabase error loading cutoff time:', JSON.stringify(error));
+          return;
+        }
+
+        if (data && data.cutoff_time) {
+          const [hour, minute] = data.cutoff_time.split(':').map(Number);
+          const period = hour >= 12 ? 'PM' : 'AM';
+          const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+          const formattedTime = minute === 0 ? `${displayHour}${period}` : `${displayHour}:${minute.toString().padStart(2, '0')}${period}`;
+          setCutoffTime(formattedTime);
+        }
+      } catch (err) {
+        console.error('Error loading cutoff time:', err);
+      }
+    };
+
+    loadCutoffTime();
+  }, []);
+
   const testimonials = [
     {
       name: 'Sarah Johnson',
@@ -29,7 +65,7 @@ export default function TestimonialsSection() {
 
   const trustBadges = [
     { icon: 'ri-secure-payment-line', title: 'Secure Payment', desc: 'SSL encrypted checkout' },
-    { icon: 'ri-truck-line', title: 'Same Day Delivery', desc: 'Order by 2PM' },
+    { icon: 'ri-truck-line', title: 'Same Day Delivery', desc: `Order by ${cutoffTime}` },
     { icon: 'ri-shield-check-line', title: 'Quality Guarantee', desc: '100% fresh promise' },
     { icon: 'ri-customer-service-2-line', title: '24/7 Support', desc: 'We\'re here to help' }
   ];
@@ -62,7 +98,7 @@ export default function TestimonialsSection() {
                   <p className="text-sm text-gray-600">{testimonial.location}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center mb-4">
                 {[...Array(testimonial.rating)].map((_, i) => (
                   <div key={i} className="w-4 h-4 flex items-center justify-center">
@@ -70,7 +106,7 @@ export default function TestimonialsSection() {
                   </div>
                 ))}
               </div>
-              
+
               <p className="text-gray-700 leading-relaxed">{testimonial.text}</p>
             </div>
           ))}

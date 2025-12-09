@@ -178,8 +178,9 @@ serve(async (req) => {
     // Calculate totals with safe number conversion
     const subtotal = cartItems.reduce((sum: number, item: any) => {
       const price = Number(item.price) || 0
+      const bottlePrice = Number(item.bottlePrice) || 0
       const quantity = Number(item.quantity) || 0
-      return sum + (price * quantity)
+      return sum + ((price + bottlePrice) * quantity)
     }, 0)
     
     // Calculate taxes based on product tax types
@@ -278,39 +279,40 @@ serve(async (req) => {
     // Insert order items with correct column names matching the database schema
     const orderItems = cartItems.map((item: any) => {
       const unitPrice = Number(item.price) || 0
+      const bottlePrice = Number(item.bottlePrice) || 0
       const quantity = Number(item.quantity) || 1
-      const totalPrice = unitPrice * quantity
-      
+      const totalPrice = (unitPrice + bottlePrice) * quantity
+
       return {
         order_id: order.id,
         product_id: item.id,
         quantity: quantity,
         unit_price: unitPrice,
-        total_price: totalPrice,
-        estimated_price: totalPrice, // For scalable items
-        final_price: totalPrice, // Will be updated if weight changes
-        is_scalable: item.isScalable || false,
-        pending_weight_confirmation: item.isScalable || false
+        total_price: totalPrice
       }
     })
+
+    console.log('Attempting to insert order items:', JSON.stringify(orderItems))
 
     const { error: itemsError } = await supabaseClient
       .from('order_items')
       .insert(orderItems)
 
     if (itemsError) {
-      console.error('Order items creation error:', itemsError)
+      console.error('Order items creation error:', JSON.stringify(itemsError))
+      console.error('Order items that failed:', JSON.stringify(orderItems))
       // Try to delete the order if items failed
       await supabaseClient
         .from('orders')
         .delete()
         .eq('id', order.id)
-      
+
       return new Response(
-        JSON.stringify({ 
-          success: false, 
+        JSON.stringify({
+          success: false,
           error: 'Failed to create order items. Please try again.',
-          details: `Failed to create order items: ${itemsError.message}`
+          details: `Failed to create order items: ${itemsError.message}`,
+          fullError: itemsError
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

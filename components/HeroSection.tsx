@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import CategoryModal from './CategoryModal';
 
 export default function HeroSection() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,9 +35,12 @@ export default function HeroSection() {
             <Link href="/products" className="bg-green-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap text-center">
               Shop Now
             </Link>
-            <Link href="/products" className="bg-orange-500 text-white px-8 py-4 rounded-full font-semibold hover:bg-orange-600 transition-colors cursor-pointer whitespace-nowrap text-center">
+            <button
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="bg-orange-500 text-white px-8 py-4 rounded-full font-semibold hover:bg-orange-600 transition-colors cursor-pointer whitespace-nowrap text-center"
+            >
               Browse Categories
-            </Link>
+            </button>
           </div>
 
           <form onSubmit={handleSearch} className="relative max-w-md">
@@ -57,6 +62,12 @@ export default function HeroSection() {
           </form>
         </div>
       </div>
+
+      {/* Category Modal */}
+      <CategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+      />
     </section>
   );
 }

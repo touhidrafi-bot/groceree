@@ -9,6 +9,7 @@ interface Product {
   name: string;
   description: string;
   price: number;
+  bottle_price?: number;
   department: string;
   subdepartment: string;
   scalable: boolean;
@@ -108,6 +109,7 @@ export default function AdminProducts() {
     department: '',
     subdepartment: '',
     price: '',
+    bottle_price: '',
     unit: '',
     stock_quantity: '',
     low_stock_threshold: '5',
@@ -450,7 +452,7 @@ export default function AdminProducts() {
         throw new Error('Not authenticated');
       }
 
-      const productData = {
+      const productData: any = {
         name: formData.name,
         department: formData.department,
         subdepartment: formData.subdepartment,
@@ -464,6 +466,16 @@ export default function AdminProducts() {
         scalable: formData.scalable,
         is_active: formData.is_active
       };
+      
+      if (
+  formData.bottle_price !== undefined &&
+  String(formData.bottle_price).trim() !== ''
+) {
+  const parsed = parseFloat(formData.bottle_price as unknown as string);
+  if (!isNaN(parsed)) {
+    productData.bottle_price = parsed;
+  }
+}
 
       const isEditing = editingProduct !== null;
       const action = isEditing ? 'updateProduct' : 'createProduct';
@@ -488,7 +500,19 @@ export default function AdminProducts() {
         body: JSON.stringify(requestBody),
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError);
+        throw new Error('Invalid response from server - could not parse JSON');
+      }
+
+      if (!response.ok) {
+        console.error(`HTTP ${response.status}:`, result);
+        throw new Error(result.error || `HTTP ${response.status}: Failed to save product`);
+      }
+
       if (result.error) throw new Error(result.error);
 
       showNotification('success', result.message);
@@ -509,6 +533,9 @@ export default function AdminProducts() {
       department: product.department,
       subdepartment: product.subdepartment || '',
       price: product.price.toString(),
+bottle_price: product.bottle_price !== null && product.bottle_price !== undefined
+  ? product.bottle_price.toString()
+  : '',
       unit: product.unit,
       stock_quantity: product.stock_quantity.toString(),
       low_stock_threshold: (product.low_stock_threshold || 5).toString(),
@@ -539,6 +566,7 @@ export default function AdminProducts() {
       department: '',
       subdepartment: '',
       price: '',
+      bottle_price: '',
       unit: '',
       stock_quantity: '',
       low_stock_threshold: '5',
@@ -1074,8 +1102,8 @@ export default function AdminProducts() {
                   </div>
                 </div>
 
-                {/* Price, Unit, Stock, Threshold */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Price, Bottle Price, Unit, Stock, Threshold */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Price *
@@ -1087,6 +1115,20 @@ export default function AdminProducts() {
                       required
                       value={formData.price}
                       onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Bottle Sales/Deposit
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.bottle_price}
+                      onChange={(e) => setFormData(prev => ({ ...prev, bottle_price: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                       placeholder="0.00"
                     />

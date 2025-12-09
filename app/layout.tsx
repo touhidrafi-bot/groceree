@@ -5,6 +5,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { AuthProvider } from '../components/AuthProvider';
 import { CartProvider } from '../components/EnhancedCartProvider';
+import SpeedInsightsClient from '../components/SpeedInsightsClient';
 //import ReaddyWidget from '../components/ReaddyWidget';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -191,6 +192,8 @@ export default function RootLayout({
            {/* <ReaddyWidget /> */}
           </CartProvider>
         </AuthProvider>
+        {/* Vercel Speed Insights (client-only) */}
+        <SpeedInsightsClient />
       </body>
     </html>
   );

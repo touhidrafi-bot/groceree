@@ -12,6 +12,7 @@ export interface CartItem {
   sku: string;
   scalable?: boolean;
   taxType?: 'none' | 'gst' | 'gst_pst';
+  bottle_price?: number;
 }
 
 export interface DeliveryInfo {
@@ -242,7 +243,11 @@ class CartStore {
   }
 
   getSubtotal(): number {
-    return this.items.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return this.items.reduce((total, item) => {
+      const itemPrice = item.price * item.quantity;
+      const bottlePrice = (item.bottle_price || 0) * item.quantity;
+      return total + itemPrice + bottlePrice;
+    }, 0);
   }
 
   getTax(): number {

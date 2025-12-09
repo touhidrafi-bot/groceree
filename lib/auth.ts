@@ -185,36 +185,52 @@ class AuthService {
   }
 
   async signIn(email: string, password: string, rememberMe: boolean = false) {
-    try {
-      this.setState({ loading: true, error: null });
+  try {
+    this.setState({ loading: true, error: null });
 
-      if (!SUPABASE_CONFIGURED) {
-        throw new Error('Supabase is not configured. Please contact support.');
-      }
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) throw error;
-
-      if (rememberMe) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('sb-remember-me', 'true');
-          localStorage.setItem('sb-remember-me-timestamp', new Date().toISOString());
-        }
-      }
-
-      return { success: true, message: 'Signed in successfully!' };
-    } catch (error: any) {
-      const message = error.message || 'Failed to sign in';
-      this.setState({ error: message });
-      return { success: false, message };
-    } finally {
-      this.setState({ loading: false });
+    if (!SUPABASE_CONFIGURED) {
+      throw new Error('Supabase is not configured. Please contact support.');
     }
+
+    // Directly attempt Supabase login (no preflight fetch!)
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    // Save remember-me only AFTER successful login
+    if (rememberMe && typeof window !== 'undefined') {
+      localStorage.setItem('sb-remember-me', 'true');
+      localStorage.setItem('sb-remember-me-timestamp', new Date().toISOString());
+    }
+
+    return { success: true, message: 'Signed in successfully!' };
+
+  } catch (error: any) {
+    let rawMessage = error?.message || String(error) || 'Failed to sign in';
+    let message = rawMessage;
+
+    // Improve network error messaging
+    if (
+      rawMessage.toLowerCase().includes('failed to fetch') ||
+      rawMessage.toLowerCase().includes('networkerror')
+    ) {
+      message =
+        "Network error: Unable to reach Supabase. Check your NEXT_PUBLIC_SUPABASE_URL, internet connection, or CORS.";
+    }
+
+    this.setState({ error: message });
+    return { success: false, message };
+
+  } finally {
+    this.setState({ loading: false });
   }
+}
+
 
   async resetPassword(email: string) {
     try {

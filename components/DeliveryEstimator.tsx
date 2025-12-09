@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useCart } from './EnhancedCartProvider';
+import { supabase, SUPABASE_CONFIGURED } from '../lib/auth';
 import {
   validatePostalCode,
   getNextAvailableDeliveryTime,
@@ -14,6 +15,38 @@ export default function DeliveryEstimator() {
   const [validation, setValidation] = useState<PostalCodeValidation | null>(null);
   const [deliveryTime, setDeliveryTime] = useState<any>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [cutoffTime, setCutoffTime] = useState('1:00 PM');
+
+  // Load cutoff time from delivery settings
+  useEffect(() => {
+    const loadCutoffTime = async () => {
+      if (!SUPABASE_CONFIGURED) {
+        console.warn('Supabase not configured; skipping cutoff time load in DeliveryEstimator.');
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from('delivery_settings')
+          .select('cutoff_time')
+          .single();
+
+        if (error) {
+          console.error('Supabase error loading cutoff time (DeliveryEstimator):', JSON.stringify(error));
+        }
+
+        if (data && data.cutoff_time) {
+          const [hour, minute] = data.cutoff_time.split(':').map(Number);
+          const period = hour >= 12 ? 'PM' : 'AM';
+          const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+          setCutoffTime(`${displayHour}:${minute.toString().padStart(2, '0')} ${period}`);
+        }
+      } catch (err) {
+        console.error('Error loading cutoff time (DeliveryEstimator):', err && typeof err === 'object' ? JSON.stringify(err) : String(err));
+      }
+    };
+
+    loadCutoffTime();
+  }, []);
 
   // Live validation as user types
   useEffect(() => {
@@ -31,6 +64,8 @@ export default function DeliveryEstimator() {
       setValidation(result);
 
       if (result.isLowerMainland) {
+        // Note: cutoff time is already used by DeliveryScheduler component
+        // This is just for UI display purposes
         const nextTime = getNextAvailableDeliveryTime();
         setDeliveryTime(nextTime);
       } else {
@@ -221,7 +256,7 @@ export default function DeliveryEstimator() {
         <div className="text-xs text-gray-500 space-y-1">
           <p>✓ Serving Vancouver,BC and nearby areas</p>
           <p>✓ Flat $5.00 delivery fee</p>
-          <p>✓ Same-day delivery for orders before 1:00 PM</p>
+          <p>✓ Same-day delivery for orders before {cutoffTime}</p>
         </div>
       </div>
     </div>

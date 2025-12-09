@@ -39,6 +39,7 @@ interface Order {
     unit_price: number;
     total_price: number;
     final_weight?: number;
+    bottle_price?: number;
     products: {
       id: string;
       name: string;
@@ -46,6 +47,7 @@ interface Order {
       scalable: boolean;
       tax_type: string;
       stock_quantity: number;
+      bottle_price?: number;
     };
   }[];
 }
@@ -54,6 +56,7 @@ interface Product {
   id: string;
   name: string;
   price: number;
+  bottle_price?: number;
   unit: string;
   scalable: boolean;
   tax_type: string;
@@ -77,6 +80,11 @@ export default function AdminOrders() {
   const [addingProduct, setAddingProduct] = useState(false);
   const [editingItems, setEditingItems] = useState<{[key: string]: string}>({});
   const [updatingItems, setUpdatingItems] = useState<{[key: string]: boolean}>({});
+  const [imageErrors, setImageErrors] = useState<{[key: string]: boolean}>({});
+
+  const handleImageError = (imageKey: string) => {
+    setImageErrors(prev => ({ ...prev, [imageKey]: true }));
+  };
 
   useEffect(() => {
     loadOrders();
@@ -1509,23 +1517,35 @@ export default function AdminOrders() {
                   
                   {/* Updated order items rendering */}
                   <div className="space-y-3">
-                    {selectedOrder.order_items?.map((item) => (
+                    {selectedOrder.order_items?.map((item) => {
+                      const imageKey = `admin-order-${selectedOrder.id}-item-${item.id}`;
+                      return (
                       <div key={item.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`https://readdy.ai/api/search-image?query=Professional%20product%20photography%20of%20${encodeURIComponent(item.products?.name || 'grocery product')}%20on%20clean%20white%20background%2C%20high%20quality%2C%20commercial%20food%20photography%20style&width=100&height=100&seq=${item.id}&orientation=squarish`}
-                          alt={item.products?.name || 'Product'}
-                          className="w-16 h-16 object-cover object-center rounded-lg"
-                        />
-                        
+                        {imageErrors[imageKey] ? (
+                          <div className="w-16 h-16 bg-gray-300 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <i className="ri-image-line text-xl text-gray-500"></i>
+                          </div>
+                        ) : (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={`https://readdy.ai/api/search-image?query=Professional%20product%20photography%20of%20${encodeURIComponent(item.products?.name || 'grocery product')}%20on%20clean%20white%20background%2C%20high%20quality%2C%20commercial%20food%20photography%20style&width=100&height=100&seq=${item.id}&orientation=squarish`}
+                            alt={item.products?.name || 'Product'}
+                            className="w-16 h-16 object-cover object-center rounded-lg flex-shrink-0"
+                            onError={() => handleImageError(imageKey)}
+                          />
+                        )}
+
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900">{item.products?.name}</h4>
                           <p className="text-sm text-gray-600">${item.unit_price.toFixed(2)} per {item.products?.unit}</p>
+                          {(item.bottle_price ?? item.products?.bottle_price) != null && (
+                            <p className="text-xs text-blue-600">Bottle: ${(item.bottle_price ?? item.products?.bottle_price)!.toFixed(2)}</p>
+                          )}
                           {item.products?.scalable && item.final_weight && (
                             <p className="text-xs text-blue-600">Final weight: {item.final_weight} {item.products.unit}</p>
                           )}
                         </div>
-                        
+
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleQuantityDecrement(item.id, selectedOrder.id)}
@@ -1534,7 +1554,7 @@ export default function AdminOrders() {
                           >
                             <i className="ri-subtract-line text-sm"></i>
                           </button>
-                          
+
                           <input
                             type="number"
                             value={editingItems[item.id] !== undefined ? editingItems[item.id] : item.quantity}
@@ -1556,7 +1576,7 @@ export default function AdminOrders() {
                             className="w-20 px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             disabled={updatingItems[item.id]}
                           />
-                          
+
                           <button
                             onClick={() => handleQuantityIncrement(item.id, selectedOrder.id)}
                             disabled={updatingItems[item.id]}
@@ -1565,14 +1585,17 @@ export default function AdminOrders() {
                             <i className="ri-add-line text-sm"></i>
                           </button>
                         </div>
-                        
+
                         <div className="text-right">
-                          <div className="font-medium">${item.total_price.toFixed(2)}</div>
+                          <div className="font-medium">${(item.total_price + ((item.bottle_price || item.products?.bottle_price || 0) * item.quantity)).toFixed(2)}</div>
+                          {(item.bottle_price || item.products?.bottle_price) && (
+                            <div className="text-xs text-blue-600">+${((item.bottle_price || item.products?.bottle_price || 0) * item.quantity).toFixed(2)} bottle</div>
+                          )}
                           {updatingItems[item.id] && (
                             <div className="text-xs text-blue-600">Updating...</div>
                           )}
                         </div>
-                        
+
                         <button
                           onClick={() => removeOrderItem(item.id, selectedOrder.id)}
                           className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-full"
@@ -1580,7 +1603,8 @@ export default function AdminOrders() {
                           <i className="ri-delete-bin-line text-sm"></i>
                         </button>
                       </div>
-                    ))}
+                      );
+                    })}
                     
                     {selectedOrder.order_items?.length === 0 && (
                       <div className="text-center py-8 text-gray-500">
@@ -1707,12 +1731,19 @@ export default function AdminOrders() {
                 const isInOrder = selectedOrder?.order_items?.some(item => item.products?.id === product.id);
                 return (
                   <div key={product.id} className="border border-gray-200 rounded-lg p-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={`https://readdy.ai/api/search-image?query=Professional%20product%20photography%20of%20${encodeURIComponent(product.name)}%20on%20clean%20white%20background%2C%20high%20quality%2C%20commercial%20food%20photography%20style&width=200&height=150&seq=${product.id}&orientation=landscape`}
-                      alt={product.name}
-                      className="w-full h-32 object-cover object-top rounded-lg mb-3"
-                    />
+                    {imageErrors[`admin-product-${product.id}`] ? (
+                      <div className="w-full h-32 bg-gray-300 rounded-lg mb-3 flex items-center justify-center">
+                        <i className="ri-image-line text-2xl text-gray-500"></i>
+                      </div>
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={`https://readdy.ai/api/search-image?query=Professional%20product%20photography%20of%20${encodeURIComponent(product.name)}%20on%20clean%20white%20background%2C%20high%20quality%2C%20commercial%20food%20photography%20style&width=200&height=150&seq=${product.id}&orientation=landscape`}
+                        alt={product.name}
+                        className="w-full h-32 object-cover object-top rounded-lg mb-3"
+                        onError={() => handleImageError(`admin-product-${product.id}`)}
+                      />
+                    )}
                     <h4 className="font-medium text-gray-900 mb-1">{product.name}</h4>
                     <p className="text-sm text-gray-600 mb-2">${product.price.toFixed(2)} per {product.unit}</p>
                     <p className="text-xs text-gray-500 mb-3">Stock: {product.stock_quantity} {product.unit}</p>

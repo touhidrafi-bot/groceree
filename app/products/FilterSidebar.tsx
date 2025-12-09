@@ -30,9 +30,22 @@ export default function FilterSidebar({
   allTags,
   onClose
 }: FilterSidebarProps) {
+  // Normalized tag matching so different formats (hyphen/space/case) match
+  const normalizeTag = (t: string | undefined) =>
+    (t || '')
+      .toString()
+      .toLowerCase()
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const isTagSelected = (tag: string) => {
+    return selectedTags.some(sel => normalizeTag(sel) === normalizeTag(tag));
+  };
+
   const handleTagToggle = (tag: string) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter(t => t !== tag));
+    if (isTagSelected(tag)) {
+      setSelectedTags(selectedTags.filter(t => normalizeTag(t) !== normalizeTag(tag)));
     } else {
       setSelectedTags([...selectedTags, tag]);
     }
@@ -91,15 +104,15 @@ export default function FilterSidebar({
                 className="sr-only"
               />
               <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                selectedTags.includes(tag) ? 'bg-green-600 border-green-600' : 'border-gray-300'
+                isTagSelected(tag) ? 'bg-green-600 border-green-600' : 'border-gray-300'
               }`}>
-                {selectedTags.includes(tag) && (
+                {isTagSelected(tag) && (
                   <div className="w-3 h-3 flex items-center justify-center">
                     <i className="ri-check-line text-white text-xs"></i>
                   </div>
                 )}
               </div>
-              <span className="ml-3 text-gray-700 capitalize">{tag.replace('-', ' ')}</span>
+              <span className="ml-3 text-gray-700 capitalize">{tag.replace(/[-_]/g, ' ')}</span>
             </label>
           ))}
         </div>
@@ -109,8 +122,8 @@ export default function FilterSidebar({
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <div className={`hidden lg:block w-64 transition-all duration-300 ${show ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+      {/* Desktop Sidebar (visible by default on large screens) */}
+      <div className="hidden lg:block w-64">
         <div className="bg-white rounded-lg shadow-sm p-6 sticky top-24">
           {sidebarContent}
         </div>

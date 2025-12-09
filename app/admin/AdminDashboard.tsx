@@ -1,38 +1,128 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import AdminOrders from './AdminOrders';
-import AdminProducts from './AdminProducts';
-import AdminUsers from './AdminUsers';
-import AdminReports from './AdminReports';
-import AdminDeliverySchedule from './AdminDeliverySchedule';
-import AdminPromoCodes from './AdminPromoCodes';
+import { useState, useEffect, Suspense, lazy } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  RiShoppingBagLine,
+  RiTBoxLine,
+  RiUserLine,
+  RiCoupon2Line,
+  RiGiftLine,
+  RiCalendarLine,
+  RiBarChartLine,
+  RiMenu3Line,
+  RiCloseLine,
+} from "react-icons/ri";
+
+// Dynamic imports for heavy admin pages (lazy)
+const AdminOrders = lazy(() => import("./AdminOrders"));
+const AdminProducts = lazy(() => import("./AdminProducts"));
+const AdminUsers = lazy(() => import("./AdminUsers"));
+const AdminReports = lazy(() => import("./AdminReports"));
+const AdminDeliverySchedule = lazy(() => import("./AdminDeliverySchedule"));
+const AdminPromoCodes = lazy(() => import("./AdminPromoCodes"));
+
+type Tab = {
+  id: string;
+  name: string;
+  icon: JSX.Element;
+};
+
+const tabs: Tab[] = [
+  { id: "orders", name: "Orders", icon: <RiShoppingBagLine /> },
+  { id: "products", name: "Products", icon: <RiTBoxLine /> },
+  { id: "users", name: "Users", icon: <RiUserLine /> },
+  { id: "promo", name: "Promo Codes", icon: <RiCoupon2Line /> },
+  { id: "deals", name: "Weekly Deals", icon: <RiGiftLine /> },
+  { id: "delivery", name: "Delivery Schedule", icon: <RiCalendarLine /> },
+  { id: "reports", name: "Reports", icon: <RiBarChartLine /> },
+];
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('orders');
+  const [activeTab, setActiveTab] = useState<string>("orders");
+  const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [mobileOpen, setMobileOpen] = useState<boolean>(false);
 
-  const tabs = [
-    { id: 'orders', name: 'Orders', icon: 'ri-shopping-bag-line' },
-    { id: 'products', name: 'Products', icon: 'ri-box-line' },
-    { id: 'users', name: 'Users', icon: 'ri-user-line' },
-    { id: 'promo', name: 'Promo Codes', icon: 'ri-coupon-2-line' },
-    { id: 'delivery', name: 'Delivery Schedule', icon: 'ri-calendar-line' },
-    { id: 'reports', name: 'Reports', icon: 'ri-bar-chart-line' }
-  ];
+  // Preload lazy admin modules to reduce Suspense/loading flicker when switching tabs
+  useEffect(() => {
+    const preloads = [
+      import("./AdminOrders"),
+      import("./AdminProducts"),
+      import("./AdminUsers"),
+      import("./AdminReports"),
+      import("./AdminDeliverySchedule"),
+      import("./AdminPromoCodes"),
+    ];
+
+    preloads.forEach((p) => p.catch(() => {}));
+  }, []);
+
+  useEffect(() => {
+  if (typeof document === "undefined") return;
+
+  const el = document.scrollingElement || document.documentElement;
+
+  setTimeout(() => {
+    el.scrollTo({ top: 0, behavior: "auto" });
+  }, 5);
+}, [activeTab]);
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'orders':
+      case "orders":
         return <AdminOrders />;
-      case 'products':
+      case "products":
         return <AdminProducts />;
-      case 'users':
+      case "users":
         return <AdminUsers />;
-      case 'promo':
+      case "promo":
         return <AdminPromoCodes />;
-      case 'delivery':
+      case "deals":
+        return (
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+            <div className="flex flex-col md:flex-row gap-6 items-center">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                  Weekly Deals Manager
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Create, edit, and schedule weekly deals. Upload images, set
+                  prices, and control active dates.
+                </p>
+                <div className="flex gap-3">
+                  <Link
+                    href="/admin/weekly-deals"
+                    className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 transition"
+                  >
+                    Manage Weekly Deals
+                  </Link>
+                  <Link
+                    href="/admin/weekly-deals?create=true"
+                    className="inline-flex items-center gap-2 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    New Deal
+                  </Link>
+                </div>
+              </div>
+
+              <div className="w-48 h-32 rounded-lg overflow-hidden shadow-inner bg-gray-50">
+                {/* Using your uploaded file path as the image URL in dev */}
+                <Image
+                  src="/mnt/data/2e0f5069-bfcc-4ae3-9edd-b76a8258f85c.png"
+                  alt="Weekly deals"
+                  width={320}
+                  height={200}
+                  className="object-cover w-full h-full"
+                />
+              </div>
+            </div>
+          </div>
+        );
+      case "delivery":
         return <AdminDeliverySchedule />;
-      case 'reports':
+      case "reports":
         return <AdminReports />;
       default:
         return <AdminOrders />;
@@ -42,47 +132,222 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tab Navigation */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
-          <div className="flex overflow-x-auto">
-            {tabs.map((tab) => (
-              tab.id === 'products' ? (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab('products')}
-                  className={`flex items-center space-x-2 px-4 py-4 text-sm font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-                    activeTab === 'products'
-                      ? 'border-green-600 text-green-600 bg-green-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <i className="ri-shopping-basket-line"></i>
-                  </div>
-                  <span>Products</span>
-                </button>
-              ) : (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center space-x-2 px-4 py-4 text-sm font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? 'border-green-600 text-green-600 bg-green-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <i className={tab.icon}></i>
-                  </div>
-                  <span>{tab.name}</span>
-                </button>
-              )
-            ))}
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button
+              className="md:hidden p-2 rounded-md bg-white shadow-sm"
+              onClick={() => setMobileOpen((s) => !s)}
+              aria-label="Toggle menu"
+            >
+              {mobileOpen ? <RiCloseLine /> : <RiMenu3Line />}
+            </button>
+
+            <h1 className="text-xl font-semibold text-gray-900">
+              Admin Dashboard
+            </h1>
+            <span className="text-sm text-gray-500">Groceree</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-600">Signed in as Admin</div>
+            <Link
+              href="/"
+              className="text-sm bg-white px-3 py-1 rounded-md border border-gray-200 hover:shadow-sm"
+            >
+              View Store
+            </Link>
           </div>
         </div>
 
-        {/* Content */}
-        {renderContent()}
+        <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+          {/* Sidebar */}
+          <aside
+            className={`hidden md:block ${
+              collapsed ? "w-20" : "w-[260px]"
+            } transition-all duration-300`}
+          >
+            <div
+              className={`h-full bg-gradient-to-br from-white/60 to-green-50/30 border border-gray-100 rounded-2xl p-3 shadow-sm sticky top-6`}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow">
+                    <Image
+                      src="images/logo-favicon.jfif"
+                        alt="Groceree Logo"
+                          width={160}
+                            height={40}
+                              priority
+                              />
+                  </div>
+                  {!collapsed && (
+                    <div>
+                      <div className="text-sm font-bold text-gray-900">
+                        Groceree Admin
+                      </div>
+                      <div className="text-xs text-gray-500">Management</div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setCollapsed((s) => !s)}
+                  className="p-2 rounded-md hover:bg-gray-100"
+                  aria-label="Collapse sidebar"
+                >
+                  {collapsed ? "»" : "‹"}
+                </button>
+              </div>
+
+              <nav className="space-y-1">
+                {tabs.map((tab) => {
+                  const active = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`group w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                        active
+                          ? "bg-white text-green-600 shadow-sm"
+                          : "text-gray-600 hover:bg-white/60"
+                      }`}
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          active ? "bg-green-50" : "bg-transparent"
+                        }`}
+                      >
+                        <span className="text-xl">{tab.icon}</span>
+                      </div>
+
+                      {!collapsed && (
+                        <div className="flex-1 text-left">
+                          <div className="text-sm font-medium">
+                            {tab.name}
+                          </div>
+                        </div>
+                      )}
+
+                      {!collapsed && (
+                        <div className="text-xs text-gray-400">
+                          {active ? "Active" : ""}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div className="mt-6 pt-4 border-t border-gray-100">
+                {!collapsed && (
+                  <div className="text-xs text-gray-500">
+                    Tip: Use keyboard shortcuts to move faster
+                  </div>
+                )}
+              </div>
+            </div>
+          </aside>
+
+          {/* Mobile drawer */}
+          <AnimatePresence>
+            {mobileOpen && (
+              <motion.aside
+                initial={{ x: -300, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -300, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 200 }}
+                className="md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white p-4 rounded-r-xl shadow-xl"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Image
+                    src="/images/logo-favicon.jfif"
+                    alt="icon"
+                    width={24}   // must provide width
+                    height={24}  // must provide height
+                    className="w-6 h-6"
+                    />
+                    <div>
+                      <div className="text-sm font-bold">Groceree</div>
+                      <div className="text-xs text-gray-500">
+                        Admin Panel
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setMobileOpen(false)}
+                    aria-label="Close"
+                    className="p-2 rounded-md hover:bg-gray-100"
+                  >
+                    <RiCloseLine />
+                  </button>
+                </div>
+
+                <nav className="space-y-2">
+                  {tabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        setMobileOpen(false);
+                      }}
+                      className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-gray-100"
+                    >
+                      <span className="text-xl">{tab.icon}</span>
+                      <span className="text-sm font-medium">{tab.name}</span>
+                    </button>
+                  ))}
+                </nav>
+              </motion.aside>
+            )}
+          </AnimatePresence>
+
+          {/* Main content */}
+          <main>
+            <div className="mb-6">
+              <div className="flex items-center justify-between gap-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    {tabs.find((t) => t.id === activeTab)?.name}
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Manage {tabs.find((t) => t.id === activeTab)?.name.toLowerCase()} and settings
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button className="bg-white px-3 py-2 rounded-md border border-gray-200 hover:shadow-sm">
+                    Export CSV
+                  </button>
+                  <button className="bg-white px-3 py-2 rounded-md border border-gray-200 hover:shadow-sm">
+                    Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Suspense fallback={
+                <div className="bg-white rounded-lg p-6 border border-gray-100 shadow">
+                  Loading...
+                </div>
+              }>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    {renderContent()}
+                  </motion.div>
+                </AnimatePresence>
+              </Suspense>
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );

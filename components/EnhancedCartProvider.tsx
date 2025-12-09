@@ -122,7 +122,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               inStock: cartItem.products.in_stock || cartItem.products.stock_quantity,
               sku: cartItem.products.sku,
               scalable: cartItem.products.scalable,
-              taxType: cartItem.products.tax_type || 'none'
+              taxType: cartItem.products.tax_type || 'none',
+              // include bottle price from DB product if present
+              bottlePrice: (cartItem.products as any).bottle_price ?? (cartItem.products as any).bottlePrice ?? 0
             },
             quantity: cartItem.quantity
           });
@@ -138,6 +140,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           id: item.id,
           name: item.name,
           image: item.image,
+          bottle_price: (item as any).bottlePrice ?? 0,
           price: item.price,
           originalPrice: item.originalPrice,
           unit: item.unit,
@@ -360,7 +363,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || result.details || 'Failed to create order');
+        console.error('Order creation failed:', {
+          status: response.status,
+          error: result.error,
+          details: result.details,
+          fullError: result.fullError
+        });
+        throw new Error(result.details || result.error || 'Failed to create order');
       }
 
       // Track promo code usage if a promo code was applied

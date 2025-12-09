@@ -50,6 +50,9 @@ serve(async (req) => {
       weight: product.unit,
       price: product.price,
       originalPrice: product.original_price || null,
+      bottlePrice: product.bottle_price || 0,
+      // Preserve the full uploaded images array so front-end can show galleries
+      images: product.images || [],
       image: product.images && product.images.length > 0 ? product.images[0] : `https://readdy.ai/api/search-image?query=Professional product photography of ${product.name} on clean white background, high quality, commercial food photography style&width=400&height=300&seq=${product.id}&orientation=landscape`,
       category: product.department,
       description: product.description || `Fresh ${product.name.toLowerCase()}, perfect for your daily needs.`,

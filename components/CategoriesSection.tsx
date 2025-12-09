@@ -2,6 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { SUPABASE_CONFIGURED, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/auth';
+
+const getAuthHeaders = () => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  if (SUPABASE_ANON_KEY) {
+    headers['apikey'] = SUPABASE_ANON_KEY;
+    // Ensure Authorization header is present — some Edge Functions require it.
+    headers['Authorization'] = `Bearer ${SUPABASE_ANON_KEY}`;
+  }
+  return headers;
+};
 
 interface Category {
   id: string;
@@ -18,13 +31,19 @@ export default function CategoriesSection() {
   // Fetch categories and product counts from Supabase
   const fetchCategories = async () => {
     try {
-      if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        throw new Error('Supabase URL not configured');
+      if (!SUPABASE_CONFIGURED || !SUPABASE_URL) {
+        console.warn('Supabase not configured; skipping categories fetch and using fallback values.');
+        throw new Error('Supabase not configured');
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`);
+      const url = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/get-products`;
+
+      const response = await fetch(url, {
+        headers: getAuthHeaders()
+      });
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const text = await response.text().catch(() => 'unable to read body');
+        throw new Error(`HTTP error! status: ${response.status} body: ${text}`);
       }
       const result = await response.json();
       
@@ -59,7 +78,8 @@ export default function CategoriesSection() {
 
       setCategories(categoriesData);
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching categories:', errorMessage, error);
       // Fallback to default categories
       setCategories([
         { id: '1', name: 'Produce', icon: 'ri-leaf-line', count: 0, color: 'bg-green-100 text-green-600' },

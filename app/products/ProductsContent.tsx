@@ -16,6 +16,7 @@ export interface Product {
   price: number;
   originalPrice?: number;
   image: string;
+  images?: string[];
   category: string;
   description: string;
   nutritionFacts?: string;
@@ -28,6 +29,7 @@ export interface Product {
   scalable?: boolean;
   country_of_origin?: string;
   tax_type?: string;
+  bottle_price?: number;
   subdepartment?: string;
 }
 
@@ -48,6 +50,25 @@ function ProductsContentInner() {
 
   const categories = ['All', 'Produce', 'Grocery (Non-Taxable)', 'Dairy, Dairy Alternatives & Eggs', 'Bakery', 'Grocery (Taxable GST)', 'Health & Beauty'];
   const allTags = ['organic', 'vegan', 'gluten-free', 'protein', 'heart-healthy', 'vitamin-c', 'omega-3', 'local', 'keto', 'whole-grain', 'probiotics', 'mediterranean', 'free-range'];
+
+  // Normalize tags for tolerant comparisons (case/hyphen/space tolerant)
+  const normalizeTag = (t: string | undefined) =>
+    (t || '')
+      .toString()
+      .toLowerCase()
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const toggleTag = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
+
+  const clearTags = () => setSelectedTags([]);
 
   // Initialize search and category from URL params
   useEffect(() => {
@@ -77,9 +98,33 @@ function ProductsContentInner() {
       if (!SUPABASE_CONFIGURED) {
         throw new Error('Supabase not configured');
       }
+      // Include anon apikey and session token (if available) to satisfy function auth requirements
+      const headers: Record<string, string> = {};
+      if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        headers['apikey'] = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`);
+      try {
+        // Attempt to include current session token if available
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { supabase } = require('../../lib/auth');
+        if (supabase && typeof supabase.auth?.getSession === 'function') {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+          }
+        }
+      } catch (e) {
+        // ignore if auth client can't be required here
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`, {
+        headers
+      });
       if (!response.ok) {
+        let body = null;
+        try { body = await response.text(); } catch(e){}
+        console.error('get-products failed', response.status, body);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -123,10 +168,11 @@ function ProductsContentInner() {
       });
     }
 
-    // Apply tags filter
+    // Apply tags filter (use normalized matching so tag format differences are tolerated)
     if (selectedTags.length > 0) {
+      const normalizedSelected = selectedTags.map(normalizeTag);
       filtered = filtered.filter(product =>
-        product.tags && selectedTags.some(tag => product.tags.includes(tag))
+        product.tags && product.tags.some(pt => normalizedSelected.includes(normalizeTag(pt)))
       );
     }
 
@@ -176,7 +222,7 @@ function ProductsContentInner() {
     setSortBy(newSortBy);
   };
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = (product: Product, quantity: number = 1) => {
     const taxType: 'none' | 'gst' | 'gst_pst' =
       product.tax_type === 'gst' || product.tax_type === 'gst_pst' ? product.tax_type : 'none';
 
@@ -184,6 +230,8 @@ function ProductsContentInner() {
       id: product.id,
       name: product.name || 'Unknown Product',
       image: product.image || '',
+      // include bottlePrice if provided by the product payload
+      bottle_price: (product as any).bottlePrice ?? (product as any).bottle_price ?? 0,
       price: product.price || 0,
       originalPrice: product.originalPrice,
       unit: product.weight || '',
@@ -193,7 +241,7 @@ function ProductsContentInner() {
       sku: product.sku || `SKU${product.id.padStart(3, '0')}`,
       scalable: product.scalable || false,
       taxType
-    }, 1);
+    }, quantity);
 
     if (success) {
       setCartNotification(`${product.name || 'Product'} added to cart!`);
@@ -225,6 +273,41 @@ function ProductsContentInner() {
               : `Browse ${selectedCategory} products`
             }
           </p>
+        </div>
+
+        {/* Tag quick-filters (visible / active) */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm text-gray-600">Dietary tags</div>
+            <div className="flex items-center gap-3">
+              {selectedTags.length > 0 && (
+                <div className="text-sm text-gray-500">{selectedTags.length} selected</div>
+              )}
+              <button
+                type="button"
+                onClick={clearTags}
+                aria-label="Clear selected tags"
+                className="text-xs text-green-600 hover:text-green-700 px-2 py-1 rounded"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {allTags.map(tag => {
+              const active = selectedTags.some(sel => normalizeTag(sel) === normalizeTag(tag));
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => toggleTag(tag)}
+                  className={`px-3 py-1 rounded-full text-sm transition-colors border ${active ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  {tag.replace(/[-_]/g, ' ')}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">

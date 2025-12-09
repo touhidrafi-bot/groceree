@@ -2,3 +2,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Floating bubble animation used when adding items to cart */
+@keyframes flyUpFade {
+	0% {
+		transform: translateY(0) scale(1);
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(-26px) scale(0.9);
+		opacity: 0;
+	}
+}
+
+.flying-bubble {
+	animation: flyUpFade 600ms ease forwards;
+}

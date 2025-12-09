@@ -4,37 +4,74 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 
+interface WeeklyDeal {
+  id: string;
+  title: string;
+  description: string;
+  original_price: number;
+  sale_price: number;
+  tag: string;
+  image_url: string;
+  valid_from: string;
+  valid_to: string;
+  is_active: boolean;
+}
+
 export default function SpecialOffersSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [offers, setOffers] = useState<WeeklyDeal[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const offers = [
-    {
-      title: '50% Off Organic Fruits',
-      description: 'Fresh organic apples, oranges, and berries',
-      originalPrice: '$24.99',
-      salePrice: '$12.49',
-      image: 'https://readdy.ai/api/search-image?query=Special%20sale%20banner%20featuring%20fresh%20organic%20fruits%20with%20discount%20tags%2C%20bright%20colorful%20display%20of%20apples%20oranges%20berries%20in%20shopping%20baskets%2C%20promotional%20style%20with%20clean%20white%20background%20and%20vibrant%20colors&width=400&height=300&seq=fruit-offer&orientation=landscape',
-      validUntil: 'Valid until Sunday'
-    },
-    {
-      title: 'Buy 2 Get 1 Free',
-      description: 'All dairy products including milk and cheese',
-      originalPrice: '$18.99',
-      salePrice: 'Buy 2 Get 1',
-      image: 'https://readdy.ai/api/search-image?query=Dairy%20products%20promotional%20display%20with%20milk%20bottles%20cheese%20yogurt%20arranged%20for%20buy%202%20get%201%20free%20offer%2C%20clean%20modern%20grocery%20setting%20with%20promotional%20tags%20and%20bright%20lighting&width=400&height=300&seq=dairy-offer&orientation=landscape',
-      validUntil: 'Valid this week'
-    },
-    {
-      title: 'Fresh Vegetable Bundle',
-      description: 'Mixed seasonal vegetables - perfect for families',
-      originalPrice: '$19.99',
-      salePrice: '$14.99',
-      image: 'https://readdy.ai/api/search-image?query=Fresh%20vegetable%20bundle%20featuring%20seasonal%20vegetables%20like%20carrots%20broccoli%20lettuce%20tomatoes%20arranged%20in%20promotional%20display%20with%20sale%20tags%2C%20clean%20grocery%20store%20aesthetic&width=400&height=300&seq=veggie-bundle&orientation=landscape',
-      validUntil: 'Limited time'
-    }
-  ];
-
+  // Fetch deals from API
   useEffect(() => {
+    const fetchDeals = async () => {
+      try {
+        const response = await fetch('/api/weekly-deals', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          console.error(`HTTP ${response.status}: ${response.statusText}`);
+          // Even if response isn't ok, try to parse JSON in case there's error info
+          try {
+            const errorData = await response.json();
+            console.error('API error response:', errorData);
+          } catch (e) {
+            console.error('Could not parse error response');
+          }
+          // Continue to loading false to show no deals message
+          setLoading(false);
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.error) {
+          console.error('API returned error:', data.error);
+        }
+
+        if (data.deals && data.deals.length > 0) {
+          setOffers(data.deals);
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('Error fetching weekly deals:', errorMessage);
+        // Don't set offers, just show empty state
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDeals();
+  }, []);
+
+  // Auto-rotate slides
+  useEffect(() => {
+    if (offers.length === 0) return;
+
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % offers.length);
     }, 5000);
@@ -49,6 +86,66 @@ export default function SpecialOffersSection() {
     setCurrentSlide((prev) => (prev - 1 + offers.length) % offers.length);
   };
 
+  // Format date display
+  const getDateDisplay = (validFrom: string, validTo: string): string => {
+    const today = new Date().toISOString().split('T')[0];
+    const toDate = new Date(validTo);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (validTo === today) {
+      return 'Ends today';
+    } else if (validTo === tomorrow.toISOString().split('T')[0]) {
+      return 'Ends tomorrow';
+    }
+
+    const daysLeft = Math.ceil((toDate.getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24));
+    return `${daysLeft} days left`;
+  };
+
+  if (loading) {
+    return (
+      <section className="py-16 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Weekly Deals</h2>
+            <p className="text-xl text-gray-600">Don't miss out on these amazing offers</p>
+          </div>
+          <div className="relative max-w-4xl mx-auto">
+            <div className="overflow-hidden rounded-2xl shadow-lg bg-white">
+              <div className="h-80 animate-pulse flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading special offers...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (offers.length === 0) {
+    return (
+      <section className="py-16 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Weekly Deals</h2>
+            <p className="text-xl text-gray-600">Don't miss out on these amazing offers</p>
+          </div>
+          <div className="relative max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+              <i className="ri-gift-line text-5xl text-gray-300 mb-4 inline-block"></i>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">No deals available right now</h3>
+              <p className="text-gray-600 mb-6">Check back soon for amazing offers!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="py-16 bg-gray-50">
       <div className="container mx-auto px-4">
@@ -59,17 +156,17 @@ export default function SpecialOffersSection() {
 
         <div className="relative max-w-4xl mx-auto">
           <div className="overflow-hidden rounded-2xl shadow-lg">
-            <div 
+            <div
               className="flex transition-transform duration-500 ease-in-out"
               style={{ transform: `translateX(-${currentSlide * 100}%)` }}
             >
-              {offers.map((offer, index) => (
-                <div key={index} className="w-full flex-shrink-0">
+              {offers.map((offer) => (
+                <div key={offer.id} className="w-full flex-shrink-0">
                   <div className="bg-white p-8 md:p-12">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                       <div>
                         <div className="inline-block bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold mb-4">
-                          Special Offer
+                          {offer.tag}
                         </div>
                         <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
                           {offer.title}
@@ -79,30 +176,36 @@ export default function SpecialOffersSection() {
                         </p>
                         <div className="flex items-center space-x-4 mb-6">
                           <span className="text-3xl font-bold text-green-600">
-                            {offer.salePrice}
+                            ${offer.sale_price.toFixed(2)}
                           </span>
                           <span className="text-xl text-gray-400 line-through">
-                            {offer.originalPrice}
+                            ${offer.original_price.toFixed(2)}
+                          </span>
+                          <span className="text-sm font-semibold text-red-600 bg-red-50 px-3 py-1 rounded">
+                            {Math.round(((offer.original_price - offer.sale_price) / offer.original_price) * 100)}% OFF
                           </span>
                         </div>
                         <p className="text-sm text-gray-500 mb-6">
-                          {offer.validUntil}
+                          <i className="ri-time-line mr-2"></i>
+                          Limited time - {getDateDisplay(offer.valid_from, offer.valid_to)}
                         </p>
-                        <Link 
+                        <Link
                           href="/products"
                           className="bg-orange-500 text-white px-8 py-3 rounded-full font-semibold hover:bg-orange-600 transition-colors cursor-pointer whitespace-nowrap inline-block"
                         >
                           Shop This Deal
                         </Link>
                       </div>
-                      <div className="relative w-full h-64 md:h-80 overflow-hidden rounded-xl">
-                        <Image
-                          src={offer.image}
-                          alt={offer.title}
-                          fill
-                          className="object-cover object-top"
-                        />
-                      </div>
+                      {offer.image_url && (
+                        <div className="relative w-full h-64 md:h-80 overflow-hidden rounded-xl bg-gray-100">
+                          <Image
+                            src={offer.image_url}
+                            alt={offer.title}
+                            fill
+                            className="object-cover object-center"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
