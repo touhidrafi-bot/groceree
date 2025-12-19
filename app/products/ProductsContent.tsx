@@ -98,25 +98,11 @@ function ProductsContentInner() {
       if (!SUPABASE_CONFIGURED) {
         throw new Error('Supabase not configured');
       }
-      // Include anon apikey and session token (if available) to satisfy function auth requirements
-      const headers: Record<string, string> = {};
-      if (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        headers['apikey'] = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      }
 
-      try {
-        // Attempt to include current session token if available
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { supabase } = require('../../lib/auth');
-        if (supabase && typeof supabase.auth?.getSession === 'function') {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token) {
-            headers['Authorization'] = `Bearer ${session.access_token}`;
-          }
-        }
-      } catch (e) {
-        // ignore if auth client can't be required here
-      }
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+      };
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`, {
         headers
