@@ -138,6 +138,10 @@ export default function CheckoutPage() {
     };
     loadPaymentSettings();
   }, []);
+const paymentsDisabled =
+  !!paymentSettings &&
+  !(paymentSettings.stripe_enabled ?? false) &&
+  !(paymentSettings.interac_enabled ?? false);
 
   // Give the cart a moment to load before rendering
   useEffect(() => {
@@ -935,10 +939,10 @@ export default function CheckoutPage() {
                     </button>
                   ) : (
                     <button
-                      type="submit"
-                      disabled={isProcessing || !validateStep(3) || (paymentSettings && !paymentSettings.stripe_enabled && !paymentSettings.interac_enabled)}
-                      className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                    >
+  type="submit"
+  disabled={isProcessing || !validateStep(3) || paymentsDisabled}
+  className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+>
                       {isProcessing ? (
                         <div className="flex items-center justify-center gap-2">
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

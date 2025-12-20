@@ -314,10 +314,28 @@ export default function AdminProducts() {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length + formData.images.length > 6) {
-      showNotification('error', 'Maximum 6 images allowed');
+  const processImageFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+
+    // Validate file count
+    if (fileArray.length + formData.images.length > 6) {
+      showNotification('error', `Maximum 6 images allowed. You have ${formData.images.length} image(s) already.`);
+      return;
+    }
+
+    // Validate file types
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const invalidFiles = fileArray.filter(file => !validTypes.includes(file.type));
+    if (invalidFiles.length > 0) {
+      showNotification('error', 'Only JPG, PNG, and WebP images are allowed');
+      return;
+    }
+
+    // Validate file sizes (5MB max)
+    const maxSize = 5 * 1024 * 1024;
+    const oversizedFiles = fileArray.filter(file => file.size > maxSize);
+    if (oversizedFiles.length > 0) {
+      showNotification('error', 'Images must be smaller than 5MB each');
       return;
     }
 
@@ -328,14 +346,13 @@ export default function AdminProducts() {
       }
 
       const uploadedImages: string[] = [];
-      
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${i}.${fileExt}`;
         const filePath = `products/${fileName}`;
 
-        // Upload to Supabase Storage
         const { data: _uploadData, error: uploadError } = await supabase.storage
           .from('product-images')
           .upload(filePath, file);
@@ -345,7 +362,6 @@ export default function AdminProducts() {
           throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
         }
 
-        // Get public URL
         const { data: { publicUrl } } = supabase.storage
           .from('product-images')
           .getPublicUrl(filePath);
@@ -363,6 +379,32 @@ export default function AdminProducts() {
       console.error('Error uploading images:', error);
       showNotification('error', `Failed to upload images: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await processImageFiles(e.target.files || []);
+    e.target.value = '';
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await processImageFiles(e.dataTransfer.files);
   };
 
   const removeImage = (index: number) => {
@@ -1308,9 +1350,15 @@ bottle_price: product.bottle_price !== null && product.bottle_price !== undefine
                 {/* Image Upload */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Product Images (Max 6)
+                    Product Images (Max 6) {formData.images.length > 0 && <span className="text-gray-500">({formData.images.length}/6)</span>}
                   </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-4 transition-all hover:border-green-400 hover:bg-green-50 cursor-pointer"
+                  >
                     <input
                       type="file"
                       multiple
@@ -1321,7 +1369,7 @@ bottle_price: product.bottle_price !== null && product.bottle_price !== undefine
                     />
                     <label htmlFor="image-upload" className="cursor-pointer flex flex-col items-center justify-center py-4">
                       <i className="ri-upload-cloud-line text-3xl text-gray-400 mb-2"></i>
-                      <span className="text-sm text-gray-600">Click to upload images</span>
+                      <span className="text-sm text-gray-600">Drag and drop images or click to upload</span>
                       <span className="text-xs text-gray-400">JPG, PNG, WebP up to 5MB each</span>
                     </label>
                   </div>
