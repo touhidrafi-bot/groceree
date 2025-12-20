@@ -245,8 +245,8 @@ class CartStore {
   getSubtotal(): number {
     return this.items.reduce((total, item) => {
       const itemPrice = item.price * item.quantity;
-      const bottlePrice = (item.bottle_price || 0) * item.quantity;
-      return total + itemPrice + bottlePrice;
+      const bottle_price = (item.bottle_price || 0) * item.quantity;
+      return total + itemPrice + bottle_price;
     }, 0);
   }
 

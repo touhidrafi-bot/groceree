@@ -90,42 +90,41 @@ function ProductsContentInner() {
     window.scrollTo(0, 0);
   }, []);
 
-  // Fetch products from Supabase
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
+ // Fetch products from Supabase (PUBLIC, anon only)
+const fetchProducts = async () => {
+  setLoading(true);
 
-      if (!SUPABASE_CONFIGURED) {
-        throw new Error('Supabase not configured');
-      }
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-      };
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`, {
-        headers
-      });
-      if (!response.ok) {
-        let body = null;
-        try { body = await response.text(); } catch(e){}
-        console.error('get-products failed', response.status, body);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.error) throw new Error(result.error);
-
-      setProducts(result.products || []);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      setProducts([]);
-    } finally {
-      setLoading(false);
+  try {
+    if (!SUPABASE_CONFIGURED) {
+      throw new Error('Supabase not configured');
     }
-  };
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`,
+      {
+        headers: {
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        },
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('get-products failed:', response.status, result);
+      throw new Error(result?.error || `HTTP ${response.status}`);
+    }
+
+    setProducts(Array.isArray(result.products) ? result.products : []);
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    setProducts([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   // Fetch products only once on mount - removed auto-refresh
   useEffect(() => {
@@ -212,22 +211,25 @@ function ProductsContentInner() {
     const taxType: 'none' | 'gst' | 'gst_pst' =
       product.tax_type === 'gst' || product.tax_type === 'gst_pst' ? product.tax_type : 'none';
 
-    const success = addItem({
-      id: product.id,
-      name: product.name || 'Unknown Product',
-      image: product.image || '',
-      // include bottlePrice if provided by the product payload
-      bottle_price: (product as any).bottlePrice ?? (product as any).bottle_price ?? 0,
-      price: product.price || 0,
-      originalPrice: product.originalPrice,
-      unit: product.weight || '',
-      category: product.category || '',
-      isOrganic: product.tags ? product.tags.includes('organic') : false,
-      inStock: product.stock_quantity || 50,
-      sku: product.sku || `SKU${product.id.padStart(3, '0')}`,
-      scalable: product.scalable || false,
-      taxType
-    }, quantity);
+    const success = addItem(
+  {
+    id: product.id,
+    name: product.name || 'Unknown Product',
+    image: product.image || '',
+    price: product.price || 0,
+    originalPrice: product.originalPrice,
+    bottle_price: Number(product.bottle_price ?? 0), // ✅ FIXED
+    unit: product.weight || '',
+    category: product.category || '',
+    isOrganic: product.tags ? product.tags.includes('organic') : false,
+    inStock: product.stock_quantity || 50,
+    sku: product.sku || `SKU${product.id.padStart(3, '0')}`,
+    scalable: product.scalable || false,
+    taxType,
+  },
+  quantity
+);
+
 
     if (success) {
       setCartNotification(`${product.name || 'Product'} added to cart!`);

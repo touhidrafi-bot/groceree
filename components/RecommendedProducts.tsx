@@ -66,7 +66,7 @@ export default function RecommendedProducts() {
       id: product.id,
       name: product.name,
       image: product.image,
-      bottle_price: (product as any).bottlePrice ?? (product as any).bottle_price ?? 0,
+      bottle_price: (product as any).bottle_price ?? (product as any).bottle_price ?? 0,
       price: product.price,
       originalPrice: product.originalPrice,
       unit: product.unit,

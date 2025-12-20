@@ -178,9 +178,9 @@ serve(async (req) => {
     // Calculate totals with safe number conversion
     const subtotal = cartItems.reduce((sum: number, item: any) => {
       const price = Number(item.price) || 0
-      const bottlePrice = Number(item.bottlePrice) || 0
+      const bottle_price = Number(item.bottle_price) || 0
       const quantity = Number(item.quantity) || 0
-      return sum + ((price + bottlePrice) * quantity)
+      return sum + ((price + bottle_price) * quantity)
     }, 0)
     
     // Calculate taxes based on product tax types
@@ -279,16 +279,15 @@ serve(async (req) => {
     // Insert order items with correct column names matching the database schema
     const orderItems = cartItems.map((item: any) => {
       const unitPrice = Number(item.price) || 0
-      const bottlePrice = Number(item.bottlePrice) || 0
+      const bottle_price = Number(item.bottle_price) || 0
       const quantity = Number(item.quantity) || 1
-      const totalPrice = (unitPrice + bottlePrice) * quantity
+      const totalPrice = (unitPrice + bottle_price) * quantity
 
       return {
         order_id: order.id,
         product_id: item.id,
         quantity: quantity,
         unit_price: unitPrice,
-        bottle_price: bottlePrice,
         total_price: totalPrice
       }
     })
