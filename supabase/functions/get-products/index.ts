@@ -56,7 +56,7 @@ serve(async (req) => {
       weight: product.unit,
       price: product.price,
       originalPrice: product.original_price || null,
-      bottlePrice: product.bottle_price || 0,
+      bottle_price: product.bottle_price || 0,
       images: product.images || [],
       image:
         product.images?.[0] ??

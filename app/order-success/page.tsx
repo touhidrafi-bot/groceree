@@ -5,11 +5,30 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { supabase, SUPABASE_URL } from '../../lib/auth';
 
+interface OrderItem {
+  id: string;
+  quantity: number;
+  unit_price: number;
+  bottle_price: number;
+  total_price: number;
+  product: {
+    id: string;
+    name: string;
+    unit: string;
+  };
+}
+
 interface OrderDetails {
   id: string;
   order_number: string;
   total: number;
-  tip_amount?: number;
+  subtotal: number;
+  tax: number;
+  gst: number;
+  pst: number;
+  delivery_fee: number;
+  discount: number;
+  tip_amount: number;
   payment_method: string;
   payment_status: string;
   status: string;
@@ -17,7 +36,9 @@ interface OrderDetails {
   delivery_time_slot: string;
   delivery_address: string;
   created_at: string;
+  order_items: OrderItem[];
 }
+
 
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
@@ -87,13 +108,19 @@ function OrderSuccessContent() {
           }
         }
 
-        // Fetch order details from database (include tip_amount)
+        // Fetch order details from database (include tip_amount and order items)
         const { data: order, error: orderError } = await supabase
           .from('orders')
           .select(`
             id,
             order_number,
             total,
+            subtotal,
+            tax,
+            gst,
+            pst,
+            delivery_fee,
+            discount,
             tip_amount,
             payment_method,
             payment_status,
@@ -101,7 +128,15 @@ function OrderSuccessContent() {
             delivery_date,
             delivery_time_slot,
             delivery_address,
-            created_at
+            created_at,
+            order_items(
+              id,
+              quantity,
+              unit_price,
+              bottle_price,
+              total_price,
+              products(id, name, unit)
+            )
           `)
           .eq('id', orderId)
           .eq('customer_id', session.user.id)
@@ -114,7 +149,23 @@ function OrderSuccessContent() {
           return;
         }
 
-        setOrderDetails(order);
+const normalizedOrder: OrderDetails = {
+  ...order,
+  order_items: order.order_items.map((item: any) => ({
+    id: item.id,
+    quantity: Number(item.quantity),
+    unit_price: Number(item.unit_price),
+    bottle_price: Number(item.bottle_price ?? 0),
+    total_price: Number(item.total_price),
+    product: item.products?.[0] ?? {
+      id: '',
+      name: 'Unknown product',
+      unit: '',
+    },
+  })),
+};
+
+setOrderDetails(normalizedOrder);
       } catch (err) {
         console.error('Error fetching order details:', err);
         setError('Failed to load order details');
@@ -249,6 +300,35 @@ function OrderSuccessContent() {
           Thank you for your order! We've received your request and will start preparing your fresh groceries right away.
         </p>
 
+        {/* Order Items */}
+        {orderDetails?.order_items && orderDetails.order_items.length > 0 && (
+          <div className="bg-gray-50 rounded-xl p-6 mb-8">
+            <h3 className="font-semibold text-gray-900 mb-4">Order Items</h3>
+            <div className="space-y-3">
+              {orderDetails.order_items.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-lg">
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">{item.product.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {item.quantity} {item.product.unit} × ${item.unit_price.toFixed(2)}
+                    </div>
+                    {item.bottle_price && item.bottle_price > 0 && (
+                      <div className="text-xs text-blue-600 mt-1">
+                        Bottle deposit: ${(item.bottle_price * item.quantity).toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="font-medium text-gray-900">
+                      ${(item.total_price + ((item.bottle_price || 0) * item.quantity)).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Order Details */}
         <div className="bg-gray-50 rounded-xl p-6 mb-8 space-y-4">
           {(orderDetails?.order_number || orderNumber) && (
@@ -259,9 +339,42 @@ function OrderSuccessContent() {
               </span>
             </div>
           )}
-          
+
+          {(orderDetails?.subtotal || 0) > 0 && (
+            <div>
+              <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
+                <span>Subtotal</span>
+                <span>${(orderDetails?.subtotal || 0).toFixed(2)}</span>
+              </div>
+              {(orderDetails?.gst || 0) > 0 && (
+                <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
+                  <span>GST (5%)</span>
+                  <span>${(orderDetails?.gst || 0).toFixed(2)}</span>
+                </div>
+              )}
+              {(orderDetails?.pst || 0) > 0 && (
+                <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
+                  <span>PST (7%)</span>
+                  <span>${(orderDetails?.pst || 0).toFixed(2)}</span>
+                </div>
+              )}
+              {(orderDetails?.delivery_fee || 0) > 0 && (
+                <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
+                  <span>Delivery Fee</span>
+                  <span>${(orderDetails?.delivery_fee || 0).toFixed(2)}</span>
+                </div>
+              )}
+              {(orderDetails?.discount || 0) > 0 && (
+                <div className="flex justify-between items-center text-sm text-green-600 mb-2">
+                  <span>Discount</span>
+                  <span>-${(orderDetails?.discount || 0).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {(orderDetails?.total || total) && (
-            <div className="flex flex-col space-y-2">
+            <div className="flex flex-col space-y-2 border-t border-gray-200 pt-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600 font-medium">Order Total</span>
                 <span className="font-bold text-gray-900 text-xl">

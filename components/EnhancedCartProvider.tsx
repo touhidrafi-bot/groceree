@@ -140,7 +140,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           id: item.id,
           name: item.name,
           image: item.image,
-          bottle_price: (item as any).bottlePrice ?? 0,
+          bottle_price: (item as any).bottle_price ?? (item as any).bottlePrice ?? 0,
           price: item.price,
           originalPrice: item.originalPrice,
           unit: item.unit,

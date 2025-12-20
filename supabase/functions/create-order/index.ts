@@ -288,6 +288,7 @@ serve(async (req) => {
         product_id: item.id,
         quantity: quantity,
         unit_price: unitPrice,
+        bottle_price: bottlePrice,
         total_price: totalPrice
       }
     })

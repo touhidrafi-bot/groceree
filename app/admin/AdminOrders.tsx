@@ -93,81 +93,100 @@ export default function AdminOrders() {
   }, []);
 
   const loadOrders = async () => {
-    const baseSelect = `
-          id,
-          order_number,
-          status,
-          payment_method,
-          payment_status,
-          payment_date,
-          stripe_payment_intent_id,
-          total,
-          subtotal,
-          gst,
-          pst,
-          tax,
-          delivery_fee,
-          discount,
-          tip_amount,
-          created_at,
-          delivery_address,
-          delivery_instructions,
-          customer:users!orders_customer_id_fkey(first_name, last_name, email, phone),
-          driver:users!orders_driver_id_fkey(first_name, last_name),
-          order_items(
-            id,
-            quantity,
-            unit_price,
-            total_price,
-            final_weight,
-            products(id, name, unit, scalable, tax_type, stock_quantity)
-          )
-        `;
+  const baseSelect = `
+    id,
+    order_number,
+    status,
+    payment_method,
+    payment_status,
+    payment_date,
+    stripe_payment_intent_id,
+    total,
+    subtotal,
+    gst,
+    pst,
+    tax,
+    delivery_fee,
+    discount,
+    tip_amount,
+    created_at,
+    delivery_address,
+    delivery_instructions,
+    customer:users!orders_customer_id_fkey(first_name, last_name, email, phone),
+    driver:users!orders_driver_id_fkey(first_name, last_name),
+    order_items(
+      id,
+      quantity,
+      unit_price,
+      total_price,
+      final_weight,
+      bottle_price,
+      products(
+        id,
+        name,
+        unit,
+        scalable,
+        tax_type,
+        stock_quantity,
+        bottle_price
+      )
+    )
+  `;
 
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(baseSelect)
-        .order('created_at', { ascending: false });
+  try {
+    setLoading(true);
 
-      if (error) {
-        const message = (error as any)?.message || '';
-        const details = (error as any)?.details || null;
-        const code = (error as any)?.code || null;
-        const hint = (error as any)?.hint || null;
-        console.error('Supabase error loading admin orders:', { message, code, details, hint });
-        setOrders([]);
-        return;
-      }
+    const { data, error } = await supabase
+      .from('orders')
+      .select(baseSelect)
+      .order('created_at', { ascending: false });
 
-      const formattedOrders: Order[] = (data || []).map((order: any) => {
-        const orderItems = (order.order_items || []).map((item: any) => ({
-          id: item.id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price,
-          final_weight: item.final_weight,
-          products: Array.isArray(item.products) ? item.products[0] : item.products
-        }));
-
-        return {
-          ...order,
-          order_items: orderItems,
-          customer: Array.isArray(order.customer) ? order.customer[0] : order.customer,
-          driver: Array.isArray(order.driver) ? order.driver[0] : order.driver
-        };
+    if (error) {
+      console.error('Supabase error loading admin orders:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
       });
-
-      setOrders(formattedOrders);
-    } catch (err) {
-      const message = (err as any)?.message || String(err);
-      const details = (err as any)?.details || null;
-      console.error('Unexpected error loading admin orders:', { message, details });
       setOrders([]);
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+
+    const formattedOrders: Order[] = (data ?? []).map((order: any) => ({
+      ...order,
+
+      customer: Array.isArray(order.customer)
+        ? order.customer[0] ?? null
+        : order.customer ?? null,
+
+      driver: Array.isArray(order.driver)
+        ? order.driver[0] ?? null
+        : order.driver ?? null,
+
+      order_items: (order.order_items ?? []).map((item: any) => ({
+        id: item.id,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        final_weight: item.final_weight,
+        bottle_price: item.bottle_price ?? 0,
+
+        // ✅ NORMALIZED ONCE, ALWAYS OBJECT OR NULL
+        products: Array.isArray(item.products)
+          ? item.products[0] ?? null
+          : item.products ?? null,
+      })),
+    }));
+
+    setOrders(formattedOrders);
+  } catch (err) {
+    console.error('Unexpected error loading admin orders:', err);
+    setOrders([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const loadDrivers = async () => {
     try {
@@ -188,7 +207,7 @@ export default function AdminOrders() {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, price, unit, scalable, tax_type, stock_quantity, category')
+        .select('id, name, price, bottle_price, unit, scalable, tax_type, stock_quantity, category')
         .eq('is_active', true)
         .order('name');
 
@@ -200,33 +219,36 @@ export default function AdminOrders() {
   };
 
   const calculateTaxes = (items: any[]) => {
-    let subtotal = 0;
-    let totalGST = 0;
-    let totalPST = 0;
+  let subtotal = 0;
+  let totalGST = 0;
+  let totalPST = 0;
 
-    items.forEach(item => {
-      const itemTotal = item.total_price;
-      subtotal += itemTotal;
+  items.forEach(item => {
+    const itemTotal = Number(item.total_price ?? 0);
+    subtotal += itemTotal;
 
-      if (item.products.tax_type === 'gst') {
-        totalGST += itemTotal * 0.05;
-      } else if (item.products.tax_type === 'gst_pst') {
-        totalGST += itemTotal * 0.05;
-        totalPST += itemTotal * 0.07;
-      }
-    });
+    // Supabase join → products is ARRAY or null
+    const taxType = item.products?.[0]?.tax_type ?? 'none';
 
-    const totalTax = totalGST + totalPST;
-    const total = subtotal + totalTax;
+    if (taxType === 'gst') {
+      totalGST += itemTotal * 0.05;
+    } else if (taxType === 'gst_pst') {
+      totalGST += itemTotal * 0.05;
+      totalPST += itemTotal * 0.07;
+    }
+  });
 
-    return {
-      subtotal: Math.round(subtotal * 100) / 100,
-      gst: Math.round(totalGST * 100) / 100,
-      pst: Math.round(totalPST * 100) / 100,
-      tax: Math.round(totalTax * 100) / 100,
-      total: Math.round(total * 100) / 100
-    };
+  const totalTax = totalGST + totalPST;
+  const total = subtotal + totalTax;
+
+  return {
+    subtotal: Math.round(subtotal * 100) / 100,
+    gst: Math.round(totalGST * 100) / 100,
+    pst: Math.round(totalPST * 100) / 100,
+    tax: Math.round(totalTax * 100) / 100,
+    total: Math.round(total * 100) / 100,
   };
+};
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     try {
@@ -240,47 +262,56 @@ export default function AdminOrders() {
       }
 
       // If order is being cancelled, revert stock for all items
-      if (status === 'cancelled' && currentOrder.status !== 'cancelled') {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (!userError && user) {
-          // Revert stock for each order item
-          for (const orderItem of currentOrder.order_items) {
-            const quantity = orderItem.quantity;
-            const productId = orderItem.products.id;
+if (status === 'cancelled' && currentOrder.status !== 'cancelled') {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (!userError && user) {
+    // Revert stock for each order item
+    for (const orderItem of currentOrder.order_items) {
+      const quantity = Number(orderItem.quantity ?? 0);
 
-            // Get current product stock
-            const { data: product } = await supabase
-              .from('products')
-              .select('stock_quantity')
-              .eq('id', productId)
-              .single();
+      // ✅ FIX: products is array or null
+      if (!orderItem.products?.id) {
+  console.warn('Skipping stock revert, product missing:', orderItem.id);
+  continue;
+}
+const productId = orderItem.products.id;
+      // Get current product stock
+      const { data: productRow, error: productError } = await supabase
+        .from('products')
+        .select('stock_quantity')
+        .eq('id', productId)
+        .single();
 
-            if (product) {
-              const previousStock = product.stock_quantity;
-              const newStock = previousStock + quantity;
-
-              // Update product stock
-              await supabase
-                .from('products')
-                .update({ stock_quantity: newStock })
-                .eq('id', productId);
-
-              // Log stock adjustment
-              await supabase
-                .from('stock_adjustments')
-                .insert({
-                  product_id: productId,
-                  adjustment_type: 'order_cancelled',
-                  quantity_change: quantity,
-                  previous_stock: previousStock,
-                  new_stock: newStock,
-                  reason: `Order ${currentOrder.order_number} cancelled - ${quantity} units returned to stock`,
-                  adjusted_by: user.id
-                });
-            }
-          }
-        }
+      if (productError || !productRow) {
+        console.warn('Product not found for stock revert:', productId);
+        continue;
       }
+
+      const previousStock = Number(productRow.stock_quantity ?? 0);
+      const newStock = previousStock + quantity;
+
+      // Update product stock
+      await supabase
+        .from('products')
+        .update({ stock_quantity: newStock })
+        .eq('id', productId);
+
+      // Log stock adjustment
+      await supabase
+        .from('stock_adjustments')
+        .insert({
+          product_id: productId,
+          adjustment_type: 'order_cancelled',
+          quantity_change: quantity,
+          previous_stock: previousStock,
+          new_stock: newStock,
+          reason: `Order ${currentOrder.order_number} cancelled – ${quantity} units returned`,
+          adjusted_by: user.id,
+        });
+    }
+  }
+}
+
 
       const { error } = await supabase
         .from('orders')
@@ -369,12 +400,12 @@ export default function AdminOrders() {
       let finalQuantity = newQuantity;
       let newTotalPrice = 0;
 
-      if (orderItem.products.scalable) {
+      if (orderItem.products?.scalable) {
         finalQuantity = Math.max(0.01, parseFloat(newQuantity.toFixed(2)));
-        newTotalPrice = finalQuantity * orderItem.unit_price;
+        newTotalPrice = finalQuantity * (orderItem.unit_price + (orderItem.bottle_price || 0));
       } else {
         finalQuantity = Math.max(1, Math.round(newQuantity));
-        newTotalPrice = finalQuantity * orderItem.unit_price;
+        newTotalPrice = finalQuantity * (orderItem.unit_price + (orderItem.bottle_price || 0));
       }
 
       const updateData: any = {
@@ -382,7 +413,7 @@ export default function AdminOrders() {
         total_price: newTotalPrice
       };
 
-      if (orderItem.products.scalable) {
+      if (orderItem.products?.scalable) {
         updateData.final_weight = finalQuantity;
       }
 
@@ -392,7 +423,7 @@ export default function AdminOrders() {
         .eq('id', orderItemId);
 
       if (itemError) {
-        throw new Error(`Failed to update item ${orderItem.products.name}: ${itemError.message}`);
+        throw new Error(`Failed to update item ${orderItem.products?.name}: ${itemError.message}`);
       }
 
       // Calculate quantity difference for stock adjustment
@@ -532,13 +563,14 @@ export default function AdminOrders() {
           finalQuantity = Math.max(1, Math.round(quantity));
         }
 
-        const totalPrice = finalQuantity * product.price;
+        const totalPrice = finalQuantity * (product.price + (product.bottle_price || 0));
 
         const insertData = {
           order_id: orderId,
           product_id: productId,
           quantity: finalQuantity,
           unit_price: product.price,
+          bottle_price: product.bottle_price || 0,
           total_price: totalPrice,
           final_weight: product.scalable ? finalQuantity : null
         };

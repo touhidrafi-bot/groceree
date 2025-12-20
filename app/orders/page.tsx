@@ -102,7 +102,8 @@ function OrderStatusContent() {
             unit_price,
             total_price,
             final_weight,
-            products(id, name, image_url, unit, scalable, in_stock, tax_type)
+            bottle_price,
+            products(id, name, image_url, unit, scalable, in_stock, tax_type, bottle_price)
           )
         `)
         .eq('customer_id', user.id)
@@ -244,7 +245,7 @@ function OrderStatusContent() {
           adjustedQuantity = Math.round(newQuantity); // Round to whole number
         }
 
-        const newTotalPrice = adjustedQuantity * item.unit_price;
+        const newTotalPrice = adjustedQuantity * (item.unit_price + (item.bottle_price || 0));
         return {
           ...item,
           quantity: adjustedQuantity,
@@ -292,7 +293,8 @@ function OrderStatusContent() {
       id: `temp_${Date.now()}`,
       quantity: adjustedQuantity,
       unit_price: product.price,
-      total_price: adjustedQuantity * product.price,
+      bottle_price: product.bottle_price || 0,
+      total_price: adjustedQuantity * (product.price + (product.bottle_price || 0)),
       final_weight: product.scalable ? adjustedQuantity : undefined,
       products: {
         ...product,
@@ -337,6 +339,7 @@ function OrderStatusContent() {
         product_id: item.products.id,
         quantity: item.quantity,
         unit_price: item.unit_price,
+        bottle_price: item.bottle_price || 0,
         total_price: item.total_price,
         final_weight: item.final_weight
       }));
@@ -893,6 +896,11 @@ function OrderStatusContent() {
                             <div className="text-gray-500 text-xs">
                               ${item.unit_price.toFixed(2)} per {item.products?.unit}
                             </div>
+                            {item.bottle_price && item.bottle_price > 0 && (
+                              <div className="text-blue-600 text-xs mt-1">
+                                Bottle: ${item.bottle_price.toFixed(2)}
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-center space-x-2">
                             <button
