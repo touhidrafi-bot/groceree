@@ -103,7 +103,7 @@ const fetchProducts = async () => {
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`,
       {
         headers: {
-          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
         },
       }
     );
