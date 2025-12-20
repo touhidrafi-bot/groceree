@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '../../components/EnhancedCartProvider';
 import { supabase, SUPABASE_URL, SUPABASE_CONFIGURED } from '../../lib/auth';
+import { fetchPaymentSettings, PaymentSettings } from '../../lib/payment-settings';
 import { useCartNotification } from '../../components/CartNotification';
 import { useAuth } from '../../components/AuthProvider';
 import CartNotification from '../../components/CartNotification';
@@ -84,6 +85,7 @@ export default function CheckoutPage() {
   const [showStripeCheckout, setShowStripeCheckout] = useState(false);
   const [createdOrderId, _setCreatedOrderId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'interac' | 'card'>('card');
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
 
   const {
     items,
@@ -120,6 +122,22 @@ export default function CheckoutPage() {
     deliveryInstructions: '',
     saveInfo: false,
   });
+
+  // Fetch payment settings
+  useEffect(() => {
+    const loadPaymentSettings = async () => {
+      const settings = await fetchPaymentSettings();
+      setPaymentSettings(settings);
+
+      // Set default payment method based on availability
+      if (!settings.stripe_enabled && settings.interac_enabled) {
+        setPaymentMethod('interac');
+      } else if (settings.stripe_enabled) {
+        setPaymentMethod('card');
+      }
+    };
+    loadPaymentSettings();
+  }, []);
 
   // Give the cart a moment to load before rendering
   useEffect(() => {
@@ -782,91 +800,112 @@ export default function CheckoutPage() {
                 <div className="bg-white rounded-xl p-6 border border-gray-200">
                   <h2 className="text-xl font-semibold text-gray-900 mb-6">Payment Method</h2>
 
-                  <div className="space-y-4">
-                    {/* Card option */}
-                    <div
-                      className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-                        paymentMethod === 'card'
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => setPaymentMethod('card')}
-                    >
-                      <div className="flex items-center">
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value="card"
-                          checked={paymentMethod === 'card'}
-                          onChange={e => setPaymentMethod(e.target.value as 'card' | 'interac')}
-                          className="mr-3"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center">
-                            <div className="w-6 h-6 flex items-center justify-center mr-3">
-                              <i className="ri-bank-card-line text-green-600"></i>
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-900">Credit/Debit Card</div>
-                              <div className="text-sm text-gray-600">Pay securely with Stripe</div>
-                            </div>
-                          </div>
-                          {paymentMethod === 'card' && (
-                            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                              <div className="text-sm text-green-800">
-                                <div className="font-medium mb-1">Secure Card Payment:</div>
-                                <div>• Payment processed securely through Stripe</div>
-                                <div>• Supports all major credit and debit cards</div>
-                                <div>• Order prepared after payment confirmation</div>
-                              </div>
-                            </div>
-                          )}
+                  {/* No payment methods available message */}
+                  {paymentSettings && !paymentSettings.stripe_enabled && !paymentSettings.interac_enabled ? (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start space-x-3">
+                        <div className="w-5 h-5 flex items-center justify-center mt-0.5 flex-shrink-0">
+                          <i className="ri-error-warning-line text-red-600 text-lg"></i>
+                        </div>
+                        <div>
+                          <p className="font-medium text-red-900">No payment methods available</p>
+                          <p className="text-sm text-red-800 mt-1">
+                            We apologize, but no payment methods are currently available. Please contact support for assistance.
+                          </p>
                         </div>
                       </div>
                     </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Card option */}
+                      {paymentSettings?.stripe_enabled && (
+                        <div
+                          className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                            paymentMethod === 'card'
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => setPaymentMethod('card')}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              name="paymentMethod"
+                              value="card"
+                              checked={paymentMethod === 'card'}
+                              onChange={e => setPaymentMethod(e.target.value as 'card' | 'interac')}
+                              className="mr-3"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <div className="w-6 h-6 flex items-center justify-center mr-3">
+                                  <i className="ri-bank-card-line text-green-600"></i>
+                                </div>
+                                <div>
+                                  <div className="font-medium text-gray-900">Credit/Debit Card</div>
+                                  <div className="text-sm text-gray-600">Pay securely with Stripe</div>
+                                </div>
+                              </div>
+                              {paymentMethod === 'card' && (
+                                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                                  <div className="text-sm text-green-800">
+                                    <div className="font-medium mb-1">Secure Card Payment:</div>
+                                    <div>• Payment processed securely through Stripe</div>
+                                    <div>• Supports all major credit and debit cards</div>
+                                    <div>• Order prepared after payment confirmation</div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-                    {/* Interac option */}
-                    <div
-                      className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
-                        paymentMethod === 'interac'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => setPaymentMethod('interac')}
-                    >
-                      <div className="flex items-center">
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value="interac"
-                          checked={paymentMethod === 'interac'}
-                          onChange={e => setPaymentMethod(e.target.value as 'card' | 'interac')}
-                          className="mr-3"
-                        />
-                        <div className="flex-1">
+                      {/* Interac option */}
+                      {paymentSettings?.interac_enabled && (
+                        <div
+                          className={`border-2 rounded-lg p-4 cursor-pointer transition-colors ${
+                            paymentMethod === 'interac'
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => setPaymentMethod('interac')}
+                        >
                           <div className="flex items-center">
-                            <div className="w-6 h-6 flex items-center justify-center mr-3">
-                              <i className="ri-bank-line text-blue-600"></i>
-                            </div>
-                            <div>
-                              <div className="font-medium text-gray-900">Interac e-Transfer</div>
-                              <div className="text-sm text-gray-600">Pay online with Interac e-Transfer</div>
+                            <input
+                              type="radio"
+                              name="paymentMethod"
+                              value="interac"
+                              checked={paymentMethod === 'interac'}
+                              onChange={e => setPaymentMethod(e.target.value as 'card' | 'interac')}
+                              className="mr-3"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <div className="w-6 h-6 flex items-center justify-center mr-3">
+                                  <i className="ri-bank-line text-blue-600"></i>
+                                </div>
+                                <div>
+                                  <div className="font-medium text-gray-900">Interac e-Transfer</div>
+                                  <div className="text-sm text-gray-600">Pay online with Interac e-Transfer</div>
+                                </div>
+                              </div>
+                              {paymentMethod === 'interac' && (
+                                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                  <div className="text-sm text-blue-800">
+                                    <div className="font-medium mb-1">Payment Instructions:</div>
+                                    <div>• Send e-Transfer to: <strong>payments@groceree.ca</strong></div>
+                                    <div>• You'll receive a final invoice after order preparation</div>
+                                    <div>• Order will be prepared once payment is confirmed</div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
-                          {paymentMethod === 'interac' && (
-                            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                              <div className="text-sm text-blue-800">
-                                <div className="font-medium mb-1">Payment Instructions:</div>
-                                <div>• Send e-Transfer to: <strong>payments@groceree.ca</strong></div>
-                                <div>• You'll receive a final invoice after order preparation</div>
-                                <div>• Order will be prepared once payment is confirmed</div>
-                              </div>
-                            </div>
-                          )}
                         </div>
-                      </div>
+                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -897,7 +936,7 @@ export default function CheckoutPage() {
                   ) : (
                     <button
                       type="submit"
-                      disabled={isProcessing || !validateStep(3)}
+                      disabled={isProcessing || !validateStep(3) || (paymentSettings && !paymentSettings.stripe_enabled && !paymentSettings.interac_enabled)}
                       className="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
                       {isProcessing ? (

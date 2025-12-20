@@ -25,5 +25,5 @@
   "builder.command": "npm run dev",
   "builder.runDevServer": true,
   "builder.autoDetectDevServer": false,
-  "builder.launchType": "editor"
+  "builder.launchType": "browser"
 }

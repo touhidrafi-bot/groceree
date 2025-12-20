@@ -15,6 +15,7 @@ import {
   RiMenu3Line,
   RiCloseLine,
 } from "react-icons/ri";
+import AdminSettings from "../../components/admin/AdminSettings";
 
 // Dynamic imports for heavy admin pages (lazy)
 const AdminOrders = lazy(() => import("./AdminOrders"));
@@ -44,6 +45,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<string>("orders");
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
+  const [showSettings, setShowSettings] = useState<boolean>(false);
 
   // Preload lazy admin modules to reduce Suspense/loading flicker when switching tabs
   useEffect(() => {
@@ -133,37 +135,39 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between mb-6 gap-3">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
-              className="md:hidden p-2 rounded-md bg-white shadow-sm"
+              className="lg:hidden p-2 rounded-md bg-white shadow-sm flex-shrink-0"
               onClick={() => setMobileOpen((s) => !s)}
               aria-label="Toggle menu"
             >
               {mobileOpen ? <RiCloseLine /> : <RiMenu3Line />}
             </button>
 
-            <h1 className="text-xl font-semibold text-gray-900">
-              Admin Dashboard
-            </h1>
-            <span className="text-sm text-gray-500">Groceree</span>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900 truncate">
+                Admin Dashboard
+              </h1>
+              <span className="hidden sm:inline text-xs sm:text-sm text-gray-500">Groceree</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-600">Signed in as Admin</div>
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <div className="hidden sm:block text-xs sm:text-sm text-gray-600 whitespace-nowrap">Signed in as Admin</div>
             <Link
               href="/"
-              className="text-sm bg-white px-3 py-1 rounded-md border border-gray-200 hover:shadow-sm"
+              className="text-xs sm:text-sm bg-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-md border border-gray-200 hover:shadow-sm whitespace-nowrap"
             >
               View Store
             </Link>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 lg:gap-6">
           {/* Sidebar */}
           <aside
-            className={`hidden md:block ${
+            className={`hidden lg:block ${
               collapsed ? "w-20" : "w-[260px]"
             } transition-all duration-300`}
           >
@@ -257,7 +261,7 @@ export default function AdminDashboard() {
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -300, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 200 }}
-                className="md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white p-4 rounded-r-xl shadow-xl"
+                className="lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white p-4 rounded-r-xl shadow-xl"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
@@ -305,22 +309,25 @@ export default function AdminDashboard() {
 
           {/* Main content */}
           <main>
-            <div className="mb-6">
-              <div className="flex items-center justify-between gap-6">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
+            <div className="mb-4 sm:mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900 truncate">
                     {tabs.find((t) => t.id === activeTab)?.name}
                   </h2>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1">
                     Manage {tabs.find((t) => t.id === activeTab)?.name.toLowerCase()} and settings
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <button className="bg-white px-3 py-2 rounded-md border border-gray-200 hover:shadow-sm">
+                <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                  <button className="bg-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-md border border-gray-200 hover:shadow-sm text-xs sm:text-sm whitespace-nowrap">
                     Export CSV
                   </button>
-                  <button className="bg-white px-3 py-2 rounded-md border border-gray-200 hover:shadow-sm">
+                  <button
+                    onClick={() => setShowSettings(true)}
+                    className="bg-white px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-md border border-gray-200 hover:shadow-sm text-xs sm:text-sm whitespace-nowrap"
+                  >
                     Settings
                   </button>
                 </div>
@@ -349,6 +356,8 @@ export default function AdminDashboard() {
           </main>
         </div>
       </div>
+
+      <AdminSettings isOpen={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );
 }
