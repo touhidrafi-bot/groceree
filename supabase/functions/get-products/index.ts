@@ -12,17 +12,10 @@ serve(async (req) => {
   }
 
   try {
-    // 🔓 Public anon client
+    // 🔓 Public unauthenticated client - uses default environment variables
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-          },
-        },
-      }
+      Deno.env.get("SUPABASE_ANON_KEY")!
     );
 
     const url = new URL(req.url);
