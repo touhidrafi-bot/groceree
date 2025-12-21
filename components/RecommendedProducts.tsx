@@ -6,6 +6,17 @@ import Image from 'next/image';
 import { useCart } from './EnhancedCartProvider';
 import { SUPABASE_CONFIGURED } from '../lib/auth';
 
+const getAuthHeaders = () => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (anonKey) {
+    headers['Authorization'] = `Bearer ${anonKey}`;
+  }
+  return headers;
+};
+
 interface Product {
   id: string;
   name: string;
@@ -33,7 +44,9 @@ export default function RecommendedProducts() {
         throw new Error('Supabase not configured');
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`, {
+        headers: getAuthHeaders()
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

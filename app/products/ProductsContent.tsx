@@ -95,16 +95,19 @@ const fetchProducts = async () => {
   setLoading(true);
 
   try {
-    if (!SUPABASE_CONFIGURED) {
-      throw new Error('Supabase not configured');
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      throw new Error('Supabase env vars missing');
     }
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-products`,
       {
+        method: 'GET',
         headers: {
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
         },
+        cache: 'no-store',
       }
     );
 
@@ -123,8 +126,6 @@ const fetchProducts = async () => {
     setLoading(false);
   }
 };
-
-
 
   // Fetch products only once on mount - removed auto-refresh
   useEffect(() => {
@@ -261,41 +262,6 @@ const fetchProducts = async () => {
               : `Browse ${selectedCategory} products`
             }
           </p>
-        </div>
-
-        {/* Tag quick-filters (visible / active) */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-600">Dietary tags</div>
-            <div className="flex items-center gap-3">
-              {selectedTags.length > 0 && (
-                <div className="text-sm text-gray-500">{selectedTags.length} selected</div>
-              )}
-              <button
-                type="button"
-                onClick={clearTags}
-                aria-label="Clear selected tags"
-                className="text-xs text-green-600 hover:text-green-700 px-2 py-1 rounded"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {allTags.map(tag => {
-              const active = selectedTags.some(sel => normalizeTag(sel) === normalizeTag(tag));
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => toggleTag(tag)}
-                  className={`px-3 py-1 rounded-full text-sm transition-colors border ${active ? 'bg-green-600 border-green-600 text-white' : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'}`}
-                >
-                  {tag.replace(/[-_]/g, ' ')}
-                </button>
-              )
-            })}
-          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">

@@ -1,6 +1,7 @@
-
 import { Suspense } from 'react';
 import ProductsContent from './ProductsContent';
+
+export const dynamic = 'force-dynamic';
 
 function ProductsLoading() {
   return (

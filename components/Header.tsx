@@ -142,30 +142,30 @@ export default function Header() {
           {isMenuOpen && (
             <div className="md:hidden">
               <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-                <Link href="/" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                <Link href="/" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                   Home
                 </Link>
-                <Link href="/products" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                <Link href="/products" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                   Products
                 </Link>
-                <Link href="/about" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                <Link href="/about" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                   About
                 </Link>
-                <Link href="/contact" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                <Link href="/contact" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                   Contact
                 </Link>
                 {user && user.role === 'admin' && (
-                  <Link href="/admin" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                  <Link href="/admin" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                     Admin
                   </Link>
                 )}
                 {user && user.role === 'driver' && (
-                  <Link href="/driver" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                  <Link href="/driver" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                     Driver
                   </Link>
                 )}
                 {user && user.role === 'customer' && (
-                  <Link href="/orders" className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
+                  <Link href="/orders" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-gray-700 hover:text-green-600 transition-colors cursor-pointer">
                     Orders
                   </Link>
                 )}
