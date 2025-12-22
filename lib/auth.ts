@@ -103,14 +103,29 @@ class AuthService {
 
   private async loadUserProfile(userId: string) {
     try {
+      if (!userId) {
+        console.warn('No user ID provided to loadUserProfile');
+        this.setState({ user: null, error: null });
+        return;
+      }
+
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-      this.setState({ user: data, error: null });
+      if (error) {
+        console.error('Error loading user profile from database:', error);
+        throw error;
+      }
+
+      if (data) {
+        this.setState({ user: data, error: null });
+      } else {
+        console.warn('No user profile found for ID:', userId);
+        this.setState({ user: null, error: null });
+      }
     } catch (error) {
       console.error('Error loading user profile:', error);
       this.setState({ error: 'Failed to load user profile' });
@@ -152,7 +167,10 @@ class AuthService {
       // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
-        password: userData.password
+        password: userData.password,
+        options: {
+          emailRedirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`
+        }
       });
 
       if (authError) throw authError;
@@ -214,8 +232,15 @@ class AuthService {
     let rawMessage = error?.message || String(error) || 'Failed to sign in';
     let message = rawMessage;
 
-    // Improve network error messaging
-    if (
+    // Handle specific error codes
+    if (error?.code === 'email_not_confirmed') {
+      message = 'Please confirm your email address first. Check your email for a confirmation link.';
+    } else if (
+      rawMessage.toLowerCase().includes('invalid login credentials') ||
+      rawMessage.toLowerCase().includes('invalid email or password')
+    ) {
+      message = 'Invalid email or password. Please try again.';
+    } else if (
       rawMessage.toLowerCase().includes('failed to fetch') ||
       rawMessage.toLowerCase().includes('networkerror')
     ) {

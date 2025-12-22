@@ -36,10 +36,6 @@ export default function ServiceArea() {
                   <i className="ri-time-line text-green-600 mr-2"></i>
                   <span>Same-day delivery</span>
                 </div>
-                <div className="flex items-center">
-                  <i className="ri-truck-line text-green-600 mr-2"></i>
-                  <span>Free delivery over $75</span>
-                </div>
               </div>
             </div>
 

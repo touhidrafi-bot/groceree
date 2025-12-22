@@ -63,28 +63,42 @@ interface Product {
   stock_quantity: number;
   category: string;
 }
+type BooleanMap = Record<string, boolean>;
+
+type Driver = {
+  id: string;
+  first_name: string;
+  last_name: string;
+};
+
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [drivers, setDrivers] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [sendingEmail, setSendingEmail] = useState<{[key: string]: boolean}>({});
-  const [sendingPaymentRequest, setSendingPaymentRequest] = useState<{[key: string]: boolean}>({});
-  const [processingPayment, setProcessingPayment] = useState<{[key: string]: boolean}>({});
-  const [showAddProduct, setShowAddProduct] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
-  const [addingProduct, setAddingProduct] = useState(false);
-  const [editingItems, setEditingItems] = useState<{[key: string]: string}>({});
-  const [updatingItems, setUpdatingItems] = useState<{[key: string]: boolean}>({});
-  const [imageErrors, setImageErrors] = useState<{[key: string]: boolean}>({});
+
+  const [sendingEmail, setSendingEmail] = useState<BooleanMap>({});
+  const [sendingPaymentRequest, setSendingPaymentRequest] = useState<BooleanMap>({});
+  const [processingPayment, setProcessingPayment] = useState<BooleanMap>({});
+  const [editingItems, setEditingItems] = useState<Record<string, string>>({});
+  const [updatingItems, setUpdatingItems] = useState<BooleanMap>({});
+  const [imageErrors, setImageErrors] = useState<BooleanMap>({});
+
+  const [showAddProduct, setShowAddProduct] = useState<boolean>(false);
+  const [productSearch, setProductSearch] = useState<string>('');
+  const [addingProduct, setAddingProduct] = useState<boolean>(false);
 
   const handleImageError = (imageKey: string) => {
-    setImageErrors(prev => ({ ...prev, [imageKey]: true }));
-  };
+  setImageErrors(prev => {
+    if (prev[imageKey]) return prev; // already marked, do nothing
+    return { ...prev, [imageKey]: true };
+  });
+};
 
   useEffect(() => {
     loadOrders();
@@ -171,20 +185,25 @@ export default function AdminOrders() {
     }
   };
 
-  const loadDrivers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, first_name, last_name')
-        .eq('role', 'driver')
-        .eq('is_active', true);
+ const loadDrivers = async (): Promise<void> => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, first_name, last_name')
+      .eq('role', 'driver')
+      .eq('is_active', true);
 
-      if (error) throw error;
-      setDrivers(data || []);
-    } catch (error) {
-      console.error('Error loading drivers:', error);
+    if (error) {
+      throw error;
     }
-  };
+
+    setDrivers((data as Driver[]) ?? []);
+  } catch (err) {
+    console.error('Error loading drivers:', err);
+    setDrivers([]);
+  }
+};
+
 
   const loadProducts = async () => {
     try {
