@@ -9,6 +9,7 @@ interface Product {
   name: string;
   description: string;
   price: number;
+  regular_price?: number;
   bottle_price?: number;
   department: string;
   subdepartment: string;
@@ -20,6 +21,7 @@ interface Product {
   low_stock_threshold: number;
   images: string[];
   is_active: boolean;
+  dietary_tags?: string[];
   created_at: string;
 }
 
@@ -66,6 +68,21 @@ const departments = [
   'Health & Beauty',
 ];
 
+const dietaryTags = [
+  'organic',
+  'vegan',
+  'gluten free',
+  'protein',
+  'heart healthy',
+  'vitamin enriched',
+  'dairy free',
+  'non-gmo',
+  'locally sourced',
+  'fair trade',
+  'mediterranean',
+  'free range'
+];
+
 const countries = [
   'Canada', 'USA', 'Mexico', 'Ecuador', 'Chile', 'Peru', 'Colombia',
   'Spain', 'Italy', 'France', 'Netherlands', 'Belgium', 'Germany',
@@ -109,6 +126,7 @@ export default function AdminProducts() {
     department: '',
     subdepartment: '',
     price: '',
+    regular_price: '',
     bottle_price: '',
     unit: '',
     stock_quantity: '',
@@ -117,6 +135,7 @@ export default function AdminProducts() {
     country_of_origin: 'Canada',
     description: '',
     images: [] as string[],
+    dietary_tags: [] as string[],
     scalable: false,
     is_active: true
   });
@@ -506,9 +525,10 @@ export default function AdminProducts() {
         description: formData.description,
         images: formData.images,
         scalable: formData.scalable,
-        is_active: formData.is_active
+        is_active: formData.is_active,
+        dietary_tags: formData.dietary_tags
       };
-      
+
       if (
   formData.bottle_price !== undefined &&
   String(formData.bottle_price).trim() !== ''
@@ -516,6 +536,16 @@ export default function AdminProducts() {
   const parsed = parseFloat(formData.bottle_price as unknown as string);
   if (!isNaN(parsed)) {
     productData.bottle_price = parsed;
+  }
+}
+
+      if (
+  formData.regular_price !== undefined &&
+  String(formData.regular_price).trim() !== ''
+) {
+  const parsed = parseFloat(formData.regular_price as unknown as string);
+  if (!isNaN(parsed)) {
+    productData.regular_price = parsed;
   }
 }
 
@@ -551,8 +581,10 @@ export default function AdminProducts() {
       }
 
       if (!response.ok) {
+        const errorMessage = result?.error || `HTTP ${response.status}: Failed to save product`;
+        const details = result?.details ? ` - ${result.details}` : '';
         console.error(`HTTP ${response.status}:`, result);
-        throw new Error(result.error || `HTTP ${response.status}: Failed to save product`);
+        throw new Error(errorMessage + details);
       }
 
       if (result.error) throw new Error(result.error);
@@ -575,9 +607,12 @@ export default function AdminProducts() {
       department: product.department,
       subdepartment: product.subdepartment || '',
       price: product.price.toString(),
-bottle_price: product.bottle_price !== null && product.bottle_price !== undefined
-  ? product.bottle_price.toString()
-  : '',
+      regular_price: product.regular_price !== null && product.regular_price !== undefined
+        ? product.regular_price.toString()
+        : '',
+      bottle_price: product.bottle_price !== null && product.bottle_price !== undefined
+        ? product.bottle_price.toString()
+        : '',
       unit: product.unit,
       stock_quantity: product.stock_quantity.toString(),
       low_stock_threshold: (product.low_stock_threshold || 5).toString(),
@@ -585,6 +620,7 @@ bottle_price: product.bottle_price !== null && product.bottle_price !== undefine
       country_of_origin: product.country_of_origin || 'Canada',
       description: product.description || '',
       images: product.images || [],
+      dietary_tags: product.dietary_tags || [],
       scalable: product.scalable || false,
       is_active: product.is_active !== undefined ? product.is_active : true
     });
@@ -608,6 +644,7 @@ bottle_price: product.bottle_price !== null && product.bottle_price !== undefine
       department: '',
       subdepartment: '',
       price: '',
+      regular_price: '',
       bottle_price: '',
       unit: '',
       stock_quantity: '',
@@ -616,6 +653,7 @@ bottle_price: product.bottle_price !== null && product.bottle_price !== undefine
       country_of_origin: 'Canada',
       description: '',
       images: [],
+      dietary_tags: [],
       scalable: false,
       is_active: true
     });
@@ -1224,8 +1262,8 @@ bottle_price: product.bottle_price !== null && product.bottle_price !== undefine
                   </div>
                 </div>
 
-                {/* Price, Bottle Price, Unit, Stock, Threshold */}
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                {/* Price, Regular Price, Bottle Price, Unit, Stock, Threshold */}
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Price *
@@ -1240,6 +1278,21 @@ bottle_price: product.bottle_price !== null && product.bottle_price !== undefine
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                       placeholder="0.00"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Regular Price
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.regular_price}
+                      onChange={(e) => setFormData(prev => ({ ...prev, regular_price: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="0.00"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Leave empty if not on sale</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1345,6 +1398,38 @@ bottle_price: product.bottle_price !== null && product.bottle_price !== undefine
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Describe the product features, benefits, and usage..."
                   />
+                </div>
+
+                {/* Dietary Preferences */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Dietary Preferences
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {dietaryTags.map((tag) => (
+                      <label key={tag} className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.dietary_tags.includes(tag)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData(prev => ({
+                                ...prev,
+                                dietary_tags: [...prev.dietary_tags, tag]
+                              }));
+                            } else {
+                              setFormData(prev => ({
+                                ...prev,
+                                dietary_tags: prev.dietary_tags.filter(t => t !== tag)
+                              }));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 cursor-pointer"
+                        />
+                        <span className="ml-2 text-sm text-gray-700 capitalize">{tag}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Image Upload */}

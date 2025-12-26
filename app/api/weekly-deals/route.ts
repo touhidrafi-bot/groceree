@@ -8,7 +8,14 @@ const dealsCache = {
   CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
 };
 
-function createSupabaseClient() {
+// Singleton Supabase client
+let supabaseClient: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseClient() {
+  if (supabaseClient) {
+    return supabaseClient;
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -16,7 +23,8 @@ function createSupabaseClient() {
     throw new Error('Supabase environment variables not configured');
   }
 
-  return createClient(url, key);
+  supabaseClient = createClient(url, key);
+  return supabaseClient;
 }
 
 export async function GET(_request: NextRequest) {
@@ -41,7 +49,7 @@ export async function GET(_request: NextRequest) {
     }
 
     try {
-      const supabase = createSupabaseClient();
+      const supabase = getSupabaseClient();
       const today = new Date().toISOString().split('T')[0];
 
       // Fetch all active deals that are currently valid
@@ -57,19 +65,10 @@ export async function GET(_request: NextRequest) {
         console.error('Supabase error:', {
           message: error.message,
           code: error.code,
-          details: error.details,
         });
 
-        // If table doesn't exist, return empty array instead of error
-        if (error.code === 'PGRST116' || error.message?.includes('relation')) {
-          const response = { deals: [], warning: 'weekly_deals table not found' };
-          dealsCache.data = response;
-          dealsCache.timestamp = now;
-          return NextResponse.json(response);
-        }
-
-        // Return empty deals instead of error to prevent client errors
-        const response = { deals: [], warning: error.message };
+        // If table doesn't exist or connection fails, return empty array
+        const response = { deals: [] };
         dealsCache.data = response;
         dealsCache.timestamp = now;
         return NextResponse.json(response);
@@ -84,10 +83,10 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json(response);
     } catch (supabaseError) {
       const errorMessage = supabaseError instanceof Error ? supabaseError.message : String(supabaseError);
-      console.error('Supabase initialization error:', errorMessage);
+      console.error('Supabase error:', errorMessage);
 
       // Return graceful fallback with empty deals
-      const response = { deals: [], warning: 'Could not connect to Supabase' };
+      const response = { deals: [] };
       dealsCache.data = response;
       dealsCache.timestamp = now;
       return NextResponse.json(response);
@@ -106,7 +105,7 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseClient();
 
     // Note: getSession() on server requires proper request context
     // For now, we'll rely on RLS policies to handle auth

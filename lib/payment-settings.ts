@@ -20,15 +20,23 @@ export async function fetchPaymentSettings(): Promise<PaymentSettings> {
     // Check cache first (only in browser)
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem(CACHE_KEY);
-      if (cached) {
+      if (cached && cached.trim()) {
         try {
           const cachedData = JSON.parse(cached) as CachedSettings;
+
+          // Validate cache structure
+          if (!cachedData || !cachedData.data || typeof cachedData.timestamp !== 'number') {
+            throw new Error('Invalid cache structure');
+          }
+
           const now = Date.now();
           if (now - cachedData.timestamp < CACHE_DURATION) {
             return cachedData.data;
           }
         } catch (e) {
-          // Cache is invalid, continue fetching
+          // Cache is invalid, clear it and continue fetching
+          console.warn('Clearing invalid payment settings cache');
+          localStorage.removeItem(CACHE_KEY);
         }
       }
     }

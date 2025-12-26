@@ -136,11 +136,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       // Add local items first (they have priority)
       localItems.forEach(item => {
+        const botPrice = (item as any).bottle_price;
         cartStore.addItem({
           id: item.id,
           name: item.name,
           image: item.image,
-          bottle_price: (item as any).bottle_price ?? 0,
+          bottle_price: botPrice && botPrice > 0 ? Number(botPrice) : undefined,
           price: item.price,
           originalPrice: item.originalPrice,
           unit: item.unit,

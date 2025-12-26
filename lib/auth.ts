@@ -19,6 +19,32 @@ export const supabase = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   }
 });
 
+// Clean up corrupted cache data on app load
+if (typeof window !== 'undefined') {
+  try {
+    // Validate and clean cart data
+    const cartData = localStorage.getItem('cart');
+    if (cartData) {
+      try {
+        const parsed = JSON.parse(cartData);
+        // If items have bottle_price = 0, clear the cache to force reload with proper data
+        if (parsed.items && Array.isArray(parsed.items)) {
+          const hasZeroBottlePrice = parsed.items.some((item: any) => item.bottle_price === 0);
+          if (hasZeroBottlePrice) {
+            console.log('Clearing cart cache due to detected zero bottle_price values');
+            localStorage.removeItem('cart');
+          }
+        }
+      } catch (e) {
+        // If cart data is corrupted, clear it
+        localStorage.removeItem('cart');
+      }
+    }
+  } catch (error) {
+    console.error('Error cleaning up cache:', error);
+  }
+}
+
 export interface User {
   id: string;
   email: string;

@@ -14,6 +14,7 @@ export interface Product {
   name: string;
   weight: string;
   price: number;
+  regular_price?: number;
   originalPrice?: number;
   image: string;
   images?: string[];
@@ -21,6 +22,7 @@ export interface Product {
   description: string;
   nutritionFacts?: string;
   tags: string[];
+  dietary_tags?: string[];
   isOnSale: boolean;
   rating: number;
   reviews: number;
@@ -49,7 +51,7 @@ function ProductsContentInner() {
   const [loading, setLoading] = useState(true);
 
   const categories = ['All', 'Produce', 'Grocery (Non-Taxable)', 'Dairy, Dairy Alternatives & Eggs', 'Bakery', 'Grocery (Taxable GST)', 'Health & Beauty'];
-  const allTags = ['organic', 'vegan', 'gluten-free', 'protein', 'heart-healthy', 'vitamin-c', 'omega-3', 'local', 'keto', 'whole-grain', 'probiotics', 'mediterranean', 'free-range'];
+  const allTags = ['organic', 'vegan', 'gluten free', 'protein', 'heart healthy', 'vitamin enriched', 'dairy free', 'non-gmo', 'locally sourced', 'fair trade', 'mediterranean', 'free range'];
 
   // Normalize tags for tolerant comparisons (case/hyphen/space tolerant)
   const normalizeTag = (t: string | undefined) =>
@@ -118,7 +120,8 @@ const fetchProducts = async () => {
       throw new Error(result?.error || `HTTP ${response.status}`);
     }
 
-    setProducts(Array.isArray(result.products) ? result.products : []);
+    const productsData = Array.isArray(result.products) ? result.products : [];
+    setProducts(productsData);
   } catch (error) {
     console.error('Error fetching products:', error);
     setProducts([]);
@@ -136,7 +139,7 @@ const fetchProducts = async () => {
   useEffect(() => {
     let filtered = [...products];
 
-    // Apply category filter FIRST - this is the key change
+    // Apply category filter FIRST
     if (selectedCategory !== 'All') {
       filtered = filtered.filter(product => product.category === selectedCategory);
     }
@@ -147,7 +150,7 @@ const fetchProducts = async () => {
         const name = product.name || '';
         const category = product.category || '';
         const description = product.description || '';
-        
+
         return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                category.toLowerCase().includes(searchQuery.toLowerCase()) ||
                description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -157,9 +160,17 @@ const fetchProducts = async () => {
     // Apply tags filter (use normalized matching so tag format differences are tolerated)
     if (selectedTags.length > 0) {
       const normalizedSelected = selectedTags.map(normalizeTag);
-      filtered = filtered.filter(product =>
-        product.tags && product.tags.some(pt => normalizedSelected.includes(normalizeTag(pt)))
-      );
+
+      filtered = filtered.filter(product => {
+        const productTags = (product.dietary_tags || product.tags || []) as string[];
+
+        // Only show products that have at least one matching tag
+        // This is strict filtering - products without tags won't show when filter is active
+        return productTags && productTags.length > 0 && productTags.some(pt => {
+          const normalizedTag = normalizeTag(pt);
+          return normalizedSelected.includes(normalizedTag);
+        });
+      });
     }
 
     // Apply sale filter
@@ -219,7 +230,7 @@ const fetchProducts = async () => {
     image: product.image || '',
     price: product.price || 0,
     originalPrice: product.originalPrice,
-    bottle_price: Number(product.bottle_price ?? 0), // ✅ FIXED
+    bottle_price: product.bottle_price && product.bottle_price > 0 ? Number(product.bottle_price) : undefined,
     unit: product.weight || '',
     category: product.category || '',
     isOrganic: product.tags ? product.tags.includes('organic') : false,

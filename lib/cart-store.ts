@@ -128,12 +128,24 @@ class CartStore {
       if (stored && stored.trim()) {
         try {
           const data = JSON.parse(stored);
-          this.items = data.items || [];
-          this.deliveryInfo = { ...this.deliveryInfo, ...data.deliveryInfo };
-          this.appliedPromo = data.appliedPromo || null;
+          // Validate data structure
+          if (!data || typeof data !== 'object') {
+            throw new Error('Invalid cart data structure');
+          }
+          this.items = Array.isArray(data.items) ? data.items : [];
+          this.deliveryInfo = data.deliveryInfo && typeof data.deliveryInfo === 'object'
+            ? { ...this.deliveryInfo, ...data.deliveryInfo }
+            : this.deliveryInfo;
+          this.appliedPromo = (data.appliedPromo && typeof data.appliedPromo === 'object')
+            ? data.appliedPromo
+            : null;
         } catch (error) {
           console.error('Error loading cart from storage:', error);
           localStorage.removeItem('cart');
+          // Reset to defaults
+          this.items = [];
+          this.deliveryInfo = { postalCode: '', estimatedTime: 'Next available slot', fee: 5.00 };
+          this.appliedPromo = null;
         }
       }
     }

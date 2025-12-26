@@ -75,11 +75,12 @@ export default function RecommendedProducts() {
     const taxType: 'none' | 'gst' | 'gst_pst' =
       product.tax_type === 'gst' || product.tax_type === 'gst_pst' ? product.tax_type : 'none';
 
+    const botPrice = (product as any).bottle_price;
     const success = addItem({
       id: product.id,
       name: product.name,
       image: product.image,
-      bottle_price: (product as any).bottle_price ?? (product as any).bottle_price ?? 0,
+      bottle_price: botPrice && botPrice > 0 ? Number(botPrice) : undefined,
       price: product.price,
       originalPrice: product.originalPrice,
       unit: product.unit,

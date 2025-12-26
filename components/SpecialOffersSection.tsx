@@ -26,41 +26,59 @@ export default function SpecialOffersSection() {
   useEffect(() => {
     const fetchDeals = async () => {
       try {
-        const response = await fetch('/api/weekly-deals', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-        if (!response.ok) {
-          console.error(`HTTP ${response.status}: ${response.statusText}`);
-          // Even if response isn't ok, try to parse JSON in case there's error info
-          try {
-            const errorData = await response.json();
-            console.error('API error response:', errorData);
-          } catch (e) {
-            console.error('Could not parse error response');
+        try {
+          const response = await fetch('/api/weekly-deals', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            console.error(`HTTP ${response.status}: ${response.statusText}`);
+            // Even if response isn't ok, try to parse JSON in case there's error info
+            try {
+              const errorData = await response.json();
+              console.error('API error response:', errorData);
+            } catch (e) {
+              console.error('Could not parse error response');
+            }
+            // Continue to loading false to show no deals message
+            setLoading(false);
+            return;
           }
-          // Continue to loading false to show no deals message
+
+          const data = await response.json();
+
+          if (data.error) {
+            console.error('API returned error:', data.error);
+          }
+
+          if (data.deals && data.deals.length > 0) {
+            setOffers(data.deals);
+          }
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+
+          if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+            console.error('Weekly deals request timed out after 30 seconds');
+          } else {
+            const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+            console.error('Error fetching weekly deals:', errorMessage);
+          }
+          // Show empty state gracefully
+        } finally {
           setLoading(false);
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data.error) {
-          console.error('API returned error:', data.error);
-        }
-
-        if (data.deals && data.deals.length > 0) {
-          setOffers(data.deals);
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('Error fetching weekly deals:', errorMessage);
-        // Don't set offers, just show empty state
-      } finally {
+        console.error('Unexpected error in weekly deals fetch:', errorMessage);
         setLoading(false);
       }
     };

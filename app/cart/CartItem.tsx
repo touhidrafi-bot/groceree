@@ -191,13 +191,6 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }: CartItemP
             )}
             <span className="text-sm text-gray-500">per {item.unit}</span>
           </div>
-          {item.bottle_price && item.bottle_price > 0 && (
-            <div className="flex items-center space-x-1 ml-2 pl-2 border-l border-gray-200">
-              <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                Bottle: ${item.bottle_price.toFixed(2)}
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Stock Status */}

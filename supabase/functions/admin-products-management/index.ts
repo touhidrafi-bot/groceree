@@ -133,12 +133,24 @@ serve(async (req) => {
     if (action === 'createProduct') {
       // Auto-assign tax type based on department
       const taxType = departmentTaxTypes[productData.department] || 'none'
-      
+
       // Generate SKU
       const sku = await generateSKU(productData.department, productData.subdepartment)
-      
+
       // Sanitize productData: avoid sending fields that may not exist in all deployments
       const sanitizedProductData = { ...productData };
+
+      // Ensure dietary_tags is a proper array
+      const dietaryTagsArray = Array.isArray(sanitizedProductData.dietary_tags)
+        ? sanitizedProductData.dietary_tags.filter((tag: any) => tag && String(tag).trim().length > 0)
+        : [];
+
+      console.log('Creating product with data:', {
+        name: sanitizedProductData.name,
+        dietary_tags: dietaryTagsArray,
+        regular_price: sanitizedProductData.regular_price,
+        bottle_price: sanitizedProductData.bottle_price
+      });
 
       const { data: product, error } = await supabaseClient
         .from('products')
@@ -148,16 +160,24 @@ serve(async (req) => {
           tax_type: taxType,
           category: productData.department, // Required field
           stock_quantity: productData.stock_quantity || 0,
-          in_stock: productData.stock_quantity || 0
+          in_stock: productData.stock_quantity || 0,
+          regular_price: sanitizedProductData.regular_price || null,
+          original_price: sanitizedProductData.regular_price || null, // For backward compatibility
+          dietary_tags: dietaryTagsArray,
+          tags: dietaryTagsArray, // For backward compatibility
+          bottle_price: sanitizedProductData.bottle_price || 0
         })
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Insert error details:', { error, productData: sanitizedProductData })
+        throw new Error(`Failed to insert product: ${error.message}`)
+      }
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           product,
           message: `Product created successfully with SKU: ${sku}`
         }),
@@ -171,6 +191,17 @@ serve(async (req) => {
       // Sanitize productData for update as well
       const sanitizedProductData = { ...productData };
 
+      // Ensure dietary_tags is a proper array
+      const dietaryTagsArray = Array.isArray(sanitizedProductData.dietary_tags)
+        ? sanitizedProductData.dietary_tags.filter((tag: any) => tag && String(tag).trim().length > 0)
+        : [];
+
+      console.log('Updating product with data:', {
+        name: sanitizedProductData.name,
+        dietary_tags: dietaryTagsArray,
+        productId
+      });
+
       const { data: product, error } = await supabaseClient
         .from('products')
         .update({
@@ -179,17 +210,25 @@ serve(async (req) => {
           category: productData.department, // Required field
           stock_quantity: productData.stock_quantity || 0,
           in_stock: productData.stock_quantity || 0,
+          regular_price: sanitizedProductData.regular_price || null,
+          original_price: sanitizedProductData.regular_price || null, // For backward compatibility
+          dietary_tags: dietaryTagsArray,
+          tags: dietaryTagsArray, // For backward compatibility
+          bottle_price: sanitizedProductData.bottle_price || 0,
           updated_at: new Date().toISOString()
         })
         .eq('id', productId)
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Update error details:', { error, productData: sanitizedProductData })
+        throw new Error(`Failed to update product: ${error.message}`)
+      }
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           product,
           message: 'Product updated successfully'
         }),
@@ -221,9 +260,15 @@ serve(async (req) => {
     )
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('Error:', errorMessage)
+    console.error('Error in admin-products-management:', {
+      message: errorMessage,
+      error: error instanceof Error ? { name: error.name, stack: error.stack } : error
+    })
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({
+        error: errorMessage,
+        details: 'Check the server logs for more information'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
