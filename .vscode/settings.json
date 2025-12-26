@@ -21,7 +21,7 @@
     "http",
     "net"
   ],
-  "builder.serverUrl": "http://localhost:3000",
+  "builder.serverUrl": "http://localhost:3001",
   "builder.command": "npm run dev",
   "builder.runDevServer": true,
   "builder.autoDetectDevServer": false,
