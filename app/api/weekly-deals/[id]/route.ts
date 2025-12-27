@@ -1,11 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../../../lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
-
-function createSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  return createClient(url, key);
-}
 
 async function verifyAdminAccess(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -27,7 +21,6 @@ export async function PUT(
       return NextResponse.json({ error: auth.error }, { status: 403 });
     }
 
-    const supabase = createSupabaseClient();
     const body = await request.json();
 
     const { data, error } = await supabase
@@ -64,8 +57,6 @@ export async function DELETE(
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: 403 });
     }
-
-    const supabase = createSupabaseClient();
 
     const { error } = await supabase
       .from('weekly_deals')

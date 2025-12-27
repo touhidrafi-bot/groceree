@@ -8,10 +8,18 @@ interface User {
   email: string;
   first_name: string;
   last_name: string;
-  phone?: string;
-  role: 'customer' | 'driver' | 'admin';
-  is_active: boolean;
-  created_at: string;
+  phone: string | null;
+  role: string | null;
+  is_active: boolean | null;
+  created_at: string | null;
+  address: string | null;
+  city: string | null;
+  province: string | null;
+  postal_code: string | null;
+  delivery_zone: string | null;
+  delivery_instructions: string | null;
+  vehicle_type: string | null;
+  updated_at: string | null;
 }
 
 export default function AdminUsers() {
@@ -79,8 +87,8 @@ export default function AdminUsers() {
       first_name: user.first_name,
       last_name: user.last_name,
       phone: user.phone || '',
-      role: user.role,
-      is_active: user.is_active
+      role: (user.role as 'customer' | 'driver' | 'admin') || 'customer',
+      is_active: user.is_active ?? true
     });
     setShowModal(true);
   };
@@ -119,7 +127,7 @@ export default function AdminUsers() {
     return matchesRole && matchesSearch;
   });
 
-  const getRoleColor = (role: string) => {
+  const getRoleColor = (role: string | null) => {
     switch (role) {
       case 'admin':
         return 'bg-red-100 text-red-800';
@@ -213,7 +221,7 @@ export default function AdminUsers() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(user.role)}`}>
-                      {user.role}
+                       {user.role || 'Unknown'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -226,7 +234,7 @@ export default function AdminUsers() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(user.created_at).toLocaleDateString()}
+                    {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -237,14 +245,14 @@ export default function AdminUsers() {
                         Edit
                       </button>
                       <button
-                        onClick={() => toggleUserStatus(user.id, user.is_active)}
+                        onClick={() => toggleUserStatus(user.id, user.is_active ?? false)}
                         className={`${
-                          user.is_active 
+                          user.is_active ?? false
                             ? 'text-red-600 hover:text-red-900' 
                             : 'text-green-600 hover:text-green-900'
                         } cursor-pointer`}
                       >
-                        {user.is_active ? 'Deactivate' : 'Activate'}
+                        {user.is_active ?? false ? 'Deactivate' : 'Activate'}
                       </button>
                     </div>
                   </td>

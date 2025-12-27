@@ -116,7 +116,7 @@ export default function AuthModal({ isOpen, onClose, defaultMode = 'signin' }: A
       } else {
         setMessage(result.message);
       }
-    } catch (error) {
+    } catch {
       setMessage('Error sending reset email. Please try again.');
     } finally {
       setResetLoading(false);

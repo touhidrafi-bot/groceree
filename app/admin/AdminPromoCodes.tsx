@@ -288,7 +288,7 @@ export default function AdminPromoCodes() {
                   </label>
                   <select
                     name="discount_type"
-                    value={formData.discount_type}
+                    value={formData.discount_type || 'fixed'}
                     onChange={handleInputChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600"
                   >

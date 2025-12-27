@@ -38,7 +38,7 @@ interface Order {
     quantity: number;
     unit_price: number;
     total_price: number;
-    final_weight?: number;
+    final_weight: number | null;
     bottle_price?: number;
     products: {
       id: string;
@@ -56,11 +56,11 @@ interface Product {
   id: string;
   name: string;
   price: number;
-  bottle_price?: number;
+  bottle_price: number | null;
   unit: string;
-  scalable: boolean;
-  tax_type: string;
-  stock_quantity: number;
+  scalable: boolean | null;
+  tax_type: string | null;
+  stock_quantity: number | null;
   category: string;
 }
 type BooleanMap = Record<string, boolean>;
@@ -86,14 +86,14 @@ export default function AdminOrders() {
   const [sendingPaymentRequest, setSendingPaymentRequest] = useState<BooleanMap>({});
   const [processingPayment, setProcessingPayment] = useState<BooleanMap>({});
   const [editingItems, setEditingItems] = useState<Record<string, string>>({});
-  const [updatingItems, setUpdatingItems] = useState<BooleanMap>({});
-  const [imageErrors, setImageErrors] = useState<BooleanMap>({});
+  const [_updatingItems, setUpdatingItems] = useState<BooleanMap>({});
+  const [_imageErrors, setImageErrors] = useState<BooleanMap>({});
 
-  const [showAddProduct, setShowAddProduct] = useState<boolean>(false);
+  const [_showAddProduct, setShowAddProduct] = useState<boolean>(false);
   const [productSearch, setProductSearch] = useState<string>('');
-  const [addingProduct, setAddingProduct] = useState<boolean>(false);
+  const [_addingProduct, setAddingProduct] = useState<boolean>(false);
 
-  const handleImageError = (imageKey: string) => {
+  const _handleImageError = (imageKey: string) => {
   setImageErrors(prev => {
     if (prev[imageKey]) return prev; // already marked, do nothing
     return { ...prev, [imageKey]: true };
@@ -274,7 +274,7 @@ export default function AdminOrders() {
               .single();
 
             if (product) {
-              const previousStock = product.stock_quantity;
+              const previousStock = product.stock_quantity ?? 0;
               const newStock = previousStock + quantity;
 
               await supabase
@@ -513,7 +513,7 @@ export default function AdminOrders() {
     }
   };
 
-  const addProductToOrder = async (productId: string, quantity: number, orderId: string) => {
+  const _addProductToOrder = async (productId: string, quantity: number, orderId: string) => {
     setAddingProduct(true);
     
     try {
@@ -527,8 +527,8 @@ export default function AdminOrders() {
         throw new Error('Order not found');
       }
 
-      if (product.stock_quantity < quantity) {
-        throw new Error(`Insufficient stock. Available: ${product.stock_quantity} ${product.unit}`);
+      if ((product.stock_quantity ?? 0) < quantity) {
+        throw new Error(`Insufficient stock. Available: ${product.stock_quantity ?? 0} ${product.unit}`);
       }
 
       const existingItem = order.order_items.find(item => item.products.id === productId);
@@ -637,7 +637,7 @@ export default function AdminOrders() {
           }
         }
 
-        const previousStock = product.stock_quantity;
+        const previousStock = product.stock_quantity ?? 0;
         const newStock = Math.max(0, previousStock - finalQuantity);
         const { error: stockError } = await supabase
           .from('products')
@@ -677,7 +677,7 @@ export default function AdminOrders() {
     }
   };
 
-  const removeOrderItem = async (orderItemId: string, orderId: string) => {
+  const _removeOrderItem = async (orderItemId: string, orderId: string) => {
     if (!confirm('Are you sure you want to remove this item from the order?')) {
       return;
     }
@@ -764,7 +764,7 @@ export default function AdminOrders() {
         const product = products.find(p => p.id === orderItem.products.id);
         if (product) {
           const { data: { user }, error: _userError } = await supabase.auth.getUser();
-          const previousStock = product.stock_quantity;
+          const previousStock = product.stock_quantity ?? 0;
           const restoredStock = previousStock + orderItem.quantity;
 
           const { error: stockError } = await supabase
@@ -798,7 +798,7 @@ export default function AdminOrders() {
     }
   };
 
-  const handleQuantityIncrement = (orderItemId: string, orderId: string) => {
+  const _handleQuantityIncrement = (orderItemId: string, orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
@@ -811,7 +811,7 @@ export default function AdminOrders() {
     updateItemQuantity(orderItemId, newQuantity, orderId);
   };
 
-  const handleQuantityDecrement = (orderItemId: string, orderId: string) => {
+  const _handleQuantityDecrement = (orderItemId: string, orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
@@ -831,11 +831,11 @@ export default function AdminOrders() {
     }
   };
 
-  const handleQuantityEdit = (orderItemId: string, value: string) => {
+  const _handleQuantityEdit = (orderItemId: string, value: string) => {
     setEditingItems(prev => ({ ...prev, [orderItemId]: value }));
   };
 
-  const handleQuantitySave = (orderItemId: string, orderId: string) => {
+  const _handleQuantitySave = (orderItemId: string, orderId: string) => {
     const value = editingItems[orderItemId];
     const newQuantity = parseFloat(value);
     
@@ -847,7 +847,7 @@ export default function AdminOrders() {
     updateItemQuantity(orderItemId, newQuantity, orderId);
   };
 
-  const handleQuantityCancel = (orderItemId: string) => {
+  const _handleQuantityCancel = (orderItemId: string) => {
     setEditingItems(prev => {
       const newState = { ...prev };
       delete newState[orderItemId];
@@ -919,7 +919,7 @@ export default function AdminOrders() {
     await processStripePayment(orderId, parseFloat(order.total.toString()));
   };
 
-  const handlePaymentRefund = async (orderId: string, amount?: number) => {
+  const _handlePaymentRefund = async (orderId: string, amount?: number) => {
     const order = orders.find(o => o.id === orderId);
     if (!order?.stripe_payment_intent_id) return;
 
@@ -1085,7 +1085,7 @@ export default function AdminOrders() {
     return matchesStatus && matchesSearch;
   });
 
-  const filteredProducts = products.filter(product => {
+  const _filteredProducts = products.filter(product => {
     if (!productSearch) return true;
     const searchLower = productSearch.toLowerCase();
     return product.name.toLowerCase().includes(searchLower) ||

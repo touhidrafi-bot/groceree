@@ -23,7 +23,7 @@ export default function ResetPasswordPage() {
           return;
         }
         setSessionReady(true);
-      } catch (error) {
+      } catch {
         setMessage('Error verifying your session. Please request a new password reset link.');
         setSessionReady(false);
       }

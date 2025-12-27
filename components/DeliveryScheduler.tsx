@@ -19,8 +19,8 @@ interface DeliverySchedulerProps {
 }
 
 interface DeliverySettings {
-  cutoff_time: string;
-  max_deliveries_per_slot: number;
+  cutoff_time: string | null;
+  max_deliveries_per_slot: number | null;
 }
 
 interface DeliveryWindow {
@@ -28,10 +28,10 @@ interface DeliveryWindow {
   name: string;
   start_time: string;
   end_time: string;
-  display_name: string;
-  is_active: boolean;
-  sort_order: number;
-  max_deliveries: number;
+  display_name: string | null;
+  is_active: boolean | null;
+  sort_order: number | null;
+  max_deliveries: number | null;
 }
 
 function getVancouverDate(offsetDays = 0): string {
@@ -205,7 +205,7 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
     const slots: DeliverySlot[] = [];
 
     // Parse cutoff time
-    const [cutoffHour, cutoffMinute] = settings.cutoff_time.split(':').map(Number);
+    const [cutoffHour, cutoffMinute] = (settings.cutoff_time ?? '13:00:00').split(':').map(Number);
     const cutoffTimeInMinutes = cutoffHour * 60 + cutoffMinute;
     const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
@@ -226,13 +226,13 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
         if (currentHour < startHour) {
           const timeSlot = `${window.start_time.slice(0,5)}-${window.end_time.slice(0,5)}`;
           const used = await checkSlotCapacity(todayStr, timeSlot);
-          const maxCapacity = window.max_deliveries || settings.max_deliveries_per_slot;
+          const maxCapacity = window.max_deliveries ?? settings.max_deliveries_per_slot ?? 15;
 
           slots.push({
             id: `${todayStr}-${window.id}`,
             date: todayStr,
             timeSlot: timeSlot,
-            displayTime: window.display_name,
+            displayTime: window.display_name ?? window.name,
             available: used < maxCapacity,
             capacity: maxCapacity,
             used: used
@@ -250,13 +250,13 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
     for (const window of sortedWindows) {
       const timeSlot = `${window.start_time.slice(0,5)}-${window.end_time.slice(0,5)}`;
       const used = await checkSlotCapacity(tomorrowStr, timeSlot);
-      const maxCapacity = window.max_deliveries || settings.max_deliveries_per_slot;
+      const maxCapacity = window.max_deliveries ?? settings.max_deliveries_per_slot ?? 15;
 
       slots.push({
         id: `${tomorrowStr}-${window.id}`,
         date: tomorrowStr,
         timeSlot: timeSlot,
-        displayTime: window.display_name,
+        displayTime: window.display_name ?? window.name,
         available: used < maxCapacity,
         capacity: maxCapacity,
         used: used
@@ -269,13 +269,13 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
     for (const window of sortedWindows) {
       const timeSlot = `${window.start_time.slice(0,5)}-${window.end_time.slice(0,5)}`;
       const used = await checkSlotCapacity(dayAfterStr, timeSlot);
-      const maxCapacity = window.max_deliveries || settings.max_deliveries_per_slot;
+      const maxCapacity = window.max_deliveries ?? settings.max_deliveries_per_slot ?? 15;
 
       slots.push({
         id: `${dayAfterStr}-${window.id}`,
         date: dayAfterStr,
         timeSlot: timeSlot,
-        displayTime: window.display_name,
+        displayTime: window.display_name ?? window.name,
         available: used < maxCapacity,
         capacity: maxCapacity,
         used: used
@@ -440,8 +440,8 @@ export default function DeliveryScheduler({ selectedSlot, onSlotSelect }: Delive
       )}
 
       <div className="mt-4 text-xs text-gray-500">
-        <p>• Same-day delivery available for orders placed before {settings ? formatTime(settings.cutoff_time) : '1:00 PM'} (Vancouver time)</p>
-        <p>• Next-day delivery for orders placed after {settings ? formatTime(settings.cutoff_time) : '1:00 PM'}</p>
+        <p>• Same-day delivery available for orders placed before {settings ? formatTime(settings.cutoff_time ?? '13:00:00') : '1:00 PM'} (Vancouver time)</p>
+        <p>• Next-day delivery for orders placed after {settings ? formatTime(settings.cutoff_time ?? '13:00:00') : '1:00 PM'}</p>
         <p>• Each delivery slot has individual capacity limits set by the store</p>
         <p>• Delivery slots are subject to availability</p>
       </div>

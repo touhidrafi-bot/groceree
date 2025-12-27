@@ -188,8 +188,8 @@ export default function ProfileContent() {
                 {user.first_name} {user.last_name}
               </h1>
               <div className="flex items-center space-x-2 mt-1">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleColor(user.role)}`}>
-                  {getRoleDisplayName(user.role)}
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleColor(user.role ?? 'customer')}`}>
+                  {getRoleDisplayName(user.role ?? 'customer')}
                 </span>
                 <span className="text-gray-500">•</span>
                 <span className="text-gray-600">{user.email}</span>
@@ -521,7 +521,7 @@ export default function ProfileContent() {
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Member Since</span>
                 <span className="text-gray-900">
-                  {new Date(user.created_at).toLocaleDateString()}
+                  {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
                 </span>
               </div>
             </div>

@@ -1,20 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { supabase, SUPABASE_CONFIGURED } from '@/lib/auth';
-
-interface WeeklyDeal {
-  id: string;
-  title: string;
-  description: string;
-  original_price: number;
-  sale_price: number;
-  tag: string;
-  image_url: string;
-  valid_from: string;
-  valid_to: string;
-  is_active: boolean;
-}
+import { WeeklyDeal } from '@/lib/weekly-deals';
 
 interface WeeklyDealsFormProps {
   deal: WeeklyDeal | null;
@@ -53,7 +42,7 @@ export default function WeeklyDealsForm({ deal, onClose }: WeeklyDealsFormProps)
         image_url: deal.image_url || '',
         valid_from: deal.valid_from,
         valid_to: deal.valid_to,
-        is_active: deal.is_active,
+        is_active: deal.is_active ?? false,
       });
       if (deal.image_url) {
         setImagePreview(deal.image_url);
@@ -240,10 +229,11 @@ export default function WeeklyDealsForm({ deal, onClose }: WeeklyDealsFormProps)
           <div className="flex gap-4">
             {imagePreview && (
               <div className="flex-shrink-0 w-32 h-32 rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200">
-                <img
+                <Image
                   src={imagePreview}
                   alt="Preview"
-                  className="w-full h-full object-cover"
+                  fill
+                  className="object-cover"
                 />
               </div>
             )}

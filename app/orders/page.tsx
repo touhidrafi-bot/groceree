@@ -10,34 +10,34 @@ import { supabase } from '../../lib/auth';
 interface Order {
   id: string;
   order_number: string;
-  status: string;
-  total: number;
-  tip_amount?: number;
-  subtotal: number;
-  tax: number;
-  gst: number;
-  pst: number;
-  delivery_fee: number;
-  discount: number;
-  created_at: string;
+  status: string | null;
+  total: number | null;
+  tip_amount?: number | null;
+  subtotal: number | null;
+  tax: number | null;
+  gst: number | null;
+  pst: number | null;
+  delivery_fee: number | null;
+  discount: number | null;
+  created_at: string | null;
   delivery_address: string;
   order_items: {
     id: string;
     quantity: number;
     unit_price: number;
     total_price: number;
-    final_weight?: number;
-    bottle_price?: number;
+    final_weight?: number | null;
+    bottle_price?: number | null;
     products: {
       id: string;
       name: string;
-      image_url: string;
+      image_url: string | null;
       unit: string;
-      scalable: boolean;
-      in_stock: number;
-      tax_type?: 'none' | 'gst' | 'gst_pst';
-      bottle_price?: number;
-    };
+      scalable: boolean | null;
+      in_stock: number | null;
+      tax_type?: string | null;
+      bottle_price?: number | null;
+    } | null;
   }[];
 }
 
@@ -239,7 +239,7 @@ function OrderStatusContent() {
       if (item.id === itemId) {
         // Apply proper quantity rounding based on scalable property
         let adjustedQuantity;
-        if (item.products.scalable) {
+        if (item.products?.scalable) {
           adjustedQuantity = Math.round(newQuantity * 4) / 4; // Round to nearest 0.25
         } else {
           adjustedQuantity = Math.round(newQuantity); // Round to whole number
@@ -250,7 +250,7 @@ function OrderStatusContent() {
           ...item,
           quantity: adjustedQuantity,
           total_price: newTotalPrice,
-          final_weight: item.products.scalable ? adjustedQuantity : item.final_weight
+          final_weight: item.products?.scalable ? adjustedQuantity : item.final_weight
         };
       }
       return item;
@@ -334,15 +334,17 @@ function OrderStatusContent() {
       }
 
       // Insert updated order items
-      const orderItemsToInsert = editingOrder.order_items.map(item => ({
-        order_id: editingOrder.id,
-        product_id: item.products.id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        bottle_price: item.bottle_price || 0,
-        total_price: item.total_price,
-        final_weight: item.final_weight
-      }));
+      const orderItemsToInsert = editingOrder.order_items
+        .filter(item => item.products !== null)
+        .map(item => ({
+          order_id: editingOrder.id,
+          product_id: item.products!.id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          bottle_price: item.bottle_price || 0,
+          total_price: item.total_price,
+          final_weight: item.final_weight
+        }));
 
       const { error: insertError } = await supabase
         .from('order_items')
@@ -357,14 +359,14 @@ function OrderStatusContent() {
       const { error: updateError } = await supabase
         .from('orders')
         .update({
-          subtotal: editingOrder.subtotal,
-          tax: editingOrder.tax,
-          gst: editingOrder.gst,
-          pst: editingOrder.pst,
+          subtotal: editingOrder.subtotal || undefined,
+          tax: editingOrder.tax || undefined,
+          gst: editingOrder.gst || undefined,
+          pst: editingOrder.pst || undefined,
           delivery_fee: editingOrder.delivery_fee || 0,
           discount: editingOrder.discount || 0,
           tip_amount: editingOrder.tip_amount || 0,
-          total: editingOrder.total
+          total: editingOrder.total || undefined
         })
         .eq('id', editingOrder.id);
 
@@ -586,15 +588,15 @@ function OrderStatusContent() {
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">#{order.order_number}</h3>
                         <p className="text-sm text-gray-500">
-                          {new Date(order.created_at).toLocaleDateString()}
+                          {order.created_at ? new Date(order.created_at).toLocaleDateString() : 'Unknown date'}
                         </p>
                       </div>
                       <div className="text-right">
-                        <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                          {order.status.replace('_', ' ')}
+                        <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(order.status || 'unknown')}`}>
+                          {order.status ? order.status.replace('_', ' ') : 'Unknown'}
                         </span>
                         <div className="text-lg font-bold text-gray-900 mt-1">
-                          ${parseFloat(order.total.toString()).toFixed(2)}
+                          ${order.total ? parseFloat(order.total.toString()).toFixed(2) : '0.00'}
                         </div>
                       </div>
                     </div>
@@ -639,15 +641,15 @@ function OrderStatusContent() {
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">#{order.order_number}</h3>
                     <p className="text-sm text-gray-500">
-                      Ordered on {new Date(order.created_at).toLocaleDateString()}
+                      Ordered on {order.created_at ? new Date(order.created_at).toLocaleDateString() : 'Unknown date'}
                     </p>
                   </div>
                   <div className="text-right">
-                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                      {order.status.replace('_', ' ')}
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(order.status || 'unknown')}`}>
+                      {order.status ? order.status.replace('_', ' ') : 'Unknown'}
                     </span>
                     <div className="text-lg font-bold text-gray-900 mt-1">
-                      ${parseFloat(order.total.toString()).toFixed(2)}
+                      ${order.total ? parseFloat(order.total.toString()).toFixed(2) : '0.00'}
                     </div>
                   </div>
                 </div>
@@ -667,8 +669,8 @@ function OrderStatusContent() {
                           ) : (
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img
-                                  src={item.products?.image_url}
-                                  alt={item.products?.name}
+                                  src={item.products?.image_url || '/placeholder-image.png'}
+                                  alt={item.products?.name || 'Product'}
                                   className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2 flex-shrink-0"
                                   onError={() => handleImageError(imageKey)}
                                 />
@@ -760,14 +762,14 @@ function OrderStatusContent() {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <span className="text-gray-600">Status:</span>
-                        <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(selectedOrder.status)}`}>
-                          {selectedOrder.status.replace('_', ' ')}
+                        <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(selectedOrder.status || 'unknown')}`}>
+                          {selectedOrder.status ? selectedOrder.status.replace('_', ' ') : 'Unknown'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-gray-600">Order Date:</span>
                         <span className="font-medium">
-                          {new Date(selectedOrder.created_at).toLocaleDateString()}
+                          {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleDateString() : 'Unknown date'}
                         </span>
                       </div>
                       {canEditOrder(selectedOrder) && (
@@ -809,8 +811,8 @@ function OrderStatusContent() {
                           ) : (
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img
-                              src={item.products?.image_url}
-                              alt={item.products?.name}
+                              src={item.products?.image_url || '/placeholder-image.png'}
+                              alt={item.products?.name || 'Product'}
                               className="w-16 h-16 object-contain bg-gray-50 rounded-lg p-2 flex-shrink-0"
                               onError={() => handleImageError(imageKey)}
                             />
@@ -838,7 +840,7 @@ function OrderStatusContent() {
                     <div className="mt-4 pt-4 border-t border-gray-200">
                       <div className="flex justify-between items-center text-lg font-bold">
                         <span>Total</span>
-                        <span>${parseFloat(selectedOrder.total.toString()).toFixed(2)}</span>
+                        <span>${selectedOrder.total ? parseFloat(selectedOrder.total.toString()).toFixed(2) : '0.00'}</span>
                       </div>
                     </div>
                   </div>
@@ -883,7 +885,7 @@ function OrderStatusContent() {
                           ) : (
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img
-                              src={item.products?.image_url}
+                              src={item.products?.image_url ?? undefined}
                               alt={item.products?.name}
                               className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2 flex-shrink-0"
                               onError={() => handleImageError(imageKey)}
@@ -904,14 +906,14 @@ function OrderStatusContent() {
                           </div>
                           <div className="flex items-center space-x-2">
                             <button
-                              onClick={() => updateItemQuantity(item.id, Math.max(getQuantityStep(item.products.scalable), item.quantity - getQuantityStep(item.products.scalable)))}
+                              onClick={() => updateItemQuantity(item.id, Math.max(getQuantityStep(item.products?.scalable ?? false), item.quantity - getQuantityStep(item.products?.scalable ?? false)))}
                               className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded cursor-pointer hover:bg-gray-300"
                             >
                               <i className="ri-subtract-line text-sm"></i>
                             </button>
                             <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
                             <button
-                              onClick={() => updateItemQuantity(item.id, item.quantity + getQuantityStep(item.products.scalable))}
+                              onClick={() => updateItemQuantity(item.id, item.quantity + getQuantityStep(item.products?.scalable ?? false))}
                               className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded cursor-pointer hover:bg-gray-300"
                             >
                               <i className="ri-add-line text-sm"></i>
@@ -934,28 +936,28 @@ function OrderStatusContent() {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span>Subtotal:</span>
-                          <span>${editingOrder.subtotal.toFixed(2)}</span>
+                          <span>${(editingOrder.subtotal ?? 0).toFixed(2)}</span>
                         </div>
-                        {editingOrder.gst > 0 && (
+                        {(editingOrder.gst ?? 0) > 0 && (
                           <div className="flex justify-between">
                             <span>GST (5%):</span>
-                            <span>${editingOrder.gst.toFixed(2)}</span>
+                            <span>${(editingOrder.gst ?? 0).toFixed(2)}</span>
                           </div>
                         )}
-                        {editingOrder.pst > 0 && (
+                        {(editingOrder.pst ?? 0) > 0 && (
                           <div className="flex justify-between">
                             <span>PST (7%):</span>
-                            <span>${editingOrder.pst.toFixed(2)}</span>
+                            <span>${(editingOrder.pst ?? 0).toFixed(2)}</span>
                           </div>
                         )}
                         <div className="flex justify-between">
                           <span>Delivery Fee:</span>
-                          <span>${editingOrder.delivery_fee.toFixed(2)}</span>
+                          <span>${(editingOrder.delivery_fee ?? 0).toFixed(2)}</span>
                         </div>
-                        {editingOrder.discount > 0 && (
+                        {(editingOrder.discount ?? 0) > 0 && (
                           <div className="flex justify-between text-green-600">
                             <span>Discount:</span>
-                            <span>-${editingOrder.discount.toFixed(2)}</span>
+                            <span>-${(editingOrder.discount ?? 0).toFixed(2)}</span>
                           </div>
                         )}
                         {(editingOrder.tip_amount || 0) > 0 && (
@@ -966,7 +968,7 @@ function OrderStatusContent() {
                         )}
                         <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300">
                           <span>Total:</span>
-                          <span>${editingOrder.total.toFixed(2)}</span>
+                          <span>${(editingOrder.total ?? 0).toFixed(2)}</span>
                         </div>
                       </div>
                     </div>
@@ -1019,7 +1021,7 @@ function OrderStatusContent() {
                       {filteredProducts.length > 0 ? (
                         filteredProducts.map((product) => {
                           const isAlreadyInOrder = editingOrder.order_items.some(
-                            item => item.products.id === product.id
+                            item => item.products?.id === product.id
                           );
                           
                           return (

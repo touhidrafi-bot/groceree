@@ -46,17 +46,17 @@ export default function DriverDashboard() {
 
       const today = new Date().toDateString();
       const todayOrders = orders?.filter(order => 
-        new Date(order.created_at).toDateString() === today
+        order.created_at && new Date(order.created_at).toDateString() === today
       ) || [];
 
       const completedOrders = orders?.filter(order => order.status === 'delivered') || [];
       const pendingOrders = orders?.filter(order => 
-        ['picked_up', 'out_for_delivery'].includes(order.status)
+        order.status && ['picked_up', 'out_for_delivery'].includes(order.status)
       ) || [];
 
       // Calculate earnings (assuming 10% commission)
       const totalEarnings = completedOrders.reduce((sum, order) => 
-        sum + (parseFloat(order.total) * 0.1), 0
+        sum + (order.total ? parseFloat(order.total.toString()) * 0.1 : 0), 0
       );
 
       setStats({

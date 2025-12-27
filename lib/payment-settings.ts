@@ -1,7 +1,7 @@
 import { supabase } from './auth';
 
 export interface PaymentSettings {
-  id: number;
+  id: string;
   stripe_enabled: boolean;
   interac_enabled: boolean;
   updated_at: string;
@@ -33,7 +33,7 @@ export async function fetchPaymentSettings(): Promise<PaymentSettings> {
           if (now - cachedData.timestamp < CACHE_DURATION) {
             return cachedData.data;
           }
-        } catch (e) {
+        } catch {
           // Cache is invalid, clear it and continue fetching
           console.warn('Clearing invalid payment settings cache');
           localStorage.removeItem(CACHE_KEY);
@@ -50,7 +50,7 @@ export async function fetchPaymentSettings(): Promise<PaymentSettings> {
       console.error('Error fetching payment settings:', error);
       // Return default settings if fetch fails
       return {
-        id: 0,
+        id: '0',
         stripe_enabled: true,
         interac_enabled: true,
         updated_at: new Date().toISOString(),
@@ -73,7 +73,7 @@ export async function fetchPaymentSettings(): Promise<PaymentSettings> {
     console.error('Unexpected error fetching payment settings:', error);
     // Return default settings on any error
     return {
-      id: 0,
+      id: '0',
       stripe_enabled: true,
       interac_enabled: true,
       updated_at: new Date().toISOString(),

@@ -3,30 +3,30 @@ import { supabase } from './auth';
 export interface PromoCode {
   id?: string;
   code: string;
-  description?: string;
-  discount_type: 'percentage' | 'fixed' | 'free_delivery';
+  description?: string | null;
+  discount_type: string | null;
   discount_value: number;
-  min_order_amount?: number;
-  max_uses?: number;
-  current_uses?: number;
-  uses_per_user_limit?: number;
-  is_active?: boolean;
-  is_public?: boolean;
-  start_date?: string;
-  end_date?: string;
-  expires_at?: string;
-  created_at?: string;
-  updated_at?: string;
-  created_by?: string;
+  min_order_amount?: number | null;
+  max_uses?: number | null;
+  current_uses?: number | null;
+  uses_per_user_limit?: number | null;
+  is_active?: boolean | null;
+  is_public?: boolean | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  expires_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  created_by?: string | null;
 }
 
 export interface PromoCodeUsage {
   id?: string;
-  promo_code_id: string;
-  order_id?: string;
-  user_id?: string;
+  promo_code_id: string | null;
+  order_id?: string | null;
+  user_id?: string | null;
   discount_amount: number;
-  used_at?: string;
+  used_at?: string | null;
 }
 
 export interface PromoCodeValidation {
@@ -128,7 +128,7 @@ export class PromocodeService {
       }
 
       // Check usage limit
-      if (promoCode.max_uses && promoCode.current_uses !== undefined) {
+      if (promoCode.max_uses && promoCode.current_uses !== undefined && promoCode.current_uses !== null) {
         console.log('🔄 Usage limit check:', { max_uses: promoCode.max_uses, current_uses: promoCode.current_uses });
         if (promoCode.current_uses >= promoCode.max_uses) {
           console.warn('❌ Promo code usage limit reached');
@@ -544,6 +544,11 @@ export class PromocodeService {
     deliveryFee: number = 5.00
   ): number {
     try {
+      if (!promoCode.discount_type) {
+        console.warn('⚠️ No discount type specified');
+        return 0;
+      }
+
       if (promoCode.discount_type === 'percentage') {
         // Ensure discount_value is a number
         const discountValue = typeof promoCode.discount_value === 'string'

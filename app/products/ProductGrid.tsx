@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useCart } from '../../components/EnhancedCartProvider';
 import { Product } from './ProductsContent';
 
@@ -64,13 +65,16 @@ export default function ProductGrid({ products, onProductClick, onAddToCart }: P
                   <i className="ri-image-line text-3xl sm:text-4xl text-gray-400"></i>
                 </div>
               ) : (
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-36 sm:h-48 object-cover object-center transition-transform duration-300 group-hover:scale-105 cursor-pointer"
-                  onClick={() => onProductClick(product)}
-                  onError={() => handleImageError(product.id)}
-                />
+                <div className="relative w-full h-36 sm:h-48">
+                  <Image
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    className="object-cover object-center transition-transform duration-300 group-hover:scale-105 cursor-pointer"
+                    onClick={() => onProductClick(product)}
+                    onError={() => handleImageError(product.id)}
+                  />
+                </div>
               )}
 
               {/* Labels */}

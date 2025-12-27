@@ -21,21 +21,21 @@ interface OrderItem {
 interface OrderDetails {
   id: string;
   order_number: string;
-  total: number;
-  subtotal: number;
-  tax: number;
-  gst: number;
-  pst: number;
-  delivery_fee: number;
-  discount: number;
-  tip_amount: number;
-  payment_method: string;
-  payment_status: string;
-  status: string;
-  delivery_date: string;
-  delivery_time_slot: string;
+  total: number | null;
+  subtotal: number | null;
+  tax: number | null;
+  gst: number | null;
+  pst: number | null;
+  delivery_fee: number | null;
+  discount: number | null;
+  tip_amount: number | null;
+  payment_method: string | null;
+  payment_status: string | null;
+  status: string | null;
+  delivery_date: string | null;
+  delivery_time_slot: string | null;
   delivery_address: string;
-  created_at: string;
+  created_at: string | null;
   order_items: OrderItem[];
 }
 

@@ -76,7 +76,7 @@ export default function AdminReports() {
       let totalOrders = orders?.length || 0;
 
       orders?.forEach(order => {
-        const date = new Date(order.created_at).toLocaleDateString();
+        const date = order.created_at ? new Date(order.created_at).toLocaleDateString() : 'Unknown';
         // Calculate revenue from order components to ensure tip is included
         const revenue = Number(order.subtotal || 0) + Number(order.tax || 0) + Number(order.delivery_fee || 0) + Number(order.tip_amount || 0) - Number(order.discount || 0);
 
@@ -118,7 +118,7 @@ export default function AdminReports() {
         }
 
         // Product sales
-        order.order_items?.forEach(item => {
+        order.order_items?.forEach((item: any) => {
           const products = Array.isArray(item.products) ? item.products[0] : item.products;
           const productName = products?.name;
           if (productName) {

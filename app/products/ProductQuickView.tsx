@@ -70,13 +70,10 @@ export default function ProductQuickView({
   // Debug: log images when opening QuickView (development-time assistance)
   useEffect(() => {
     try {
-      // eslint-disable-next-line no-console
       console.log('ProductQuickView - product.images raw:', (product as any).images);
-      // eslint-disable-next-line no-console
       console.log('ProductQuickView - normalized images (initial):', initialImages);
-      // eslint-disable-next-line no-console
       console.log('ProductQuickView - galleryImages (state):', galleryImages);
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [galleryImages]);
@@ -107,7 +104,7 @@ export default function ProductQuickView({
         if (mounted && normalized.length > 0) {
           setGalleryImages(normalized);
         }
-      } catch (e) {
+      } catch {
         // ignore fetch errors
       }
     };

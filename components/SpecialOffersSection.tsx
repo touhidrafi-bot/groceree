@@ -46,7 +46,7 @@ export default function SpecialOffersSection() {
             try {
               const errorData = await response.json();
               console.error('API error response:', errorData);
-            } catch (e) {
+            } catch {
               console.error('Could not parse error response');
             }
             // Continue to loading false to show no deals message

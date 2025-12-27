@@ -6,7 +6,7 @@ import { clearPaymentSettingsCache } from '../../lib/payment-settings';
 import { RiCloseLine, RiLoader4Line } from 'react-icons/ri';
 
 interface PaymentSettings {
-  id: number;
+  id: string;
   stripe_enabled: boolean;
   interac_enabled: boolean;
   updated_at: string;

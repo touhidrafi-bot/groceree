@@ -35,7 +35,7 @@ if (typeof window !== 'undefined') {
             localStorage.removeItem('cart');
           }
         }
-      } catch (e) {
+      } catch {
         // If cart data is corrupted, clear it
         localStorage.removeItem('cart');
       }
@@ -50,14 +50,14 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  phone?: string;
-  role: 'customer' | 'driver' | 'admin';
-  address?: string;
-  city?: string;
-  province?: string;
-  postal_code?: string;
-  is_active: boolean;
-  created_at: string;
+  phone?: string | null;
+  role?: string | null;
+  address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
+  is_active?: boolean | null;
+  created_at?: string | null;
 }
 
 export interface AuthState {
@@ -369,7 +369,7 @@ class AuthService {
   }
 
   hasAnyRole(roles: string[]): boolean {
-    return this.state.user ? roles.includes(this.state.user.role) : false;
+    return this.state.user && this.state.user.role ? roles.includes(this.state.user.role) : false;
   }
 
   async getSessionSafely() {

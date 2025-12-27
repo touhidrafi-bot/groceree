@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../../lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Simple in-memory cache
@@ -7,25 +7,6 @@ const dealsCache = {
   timestamp: 0,
   CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
 };
-
-// Singleton Supabase client
-let supabaseClient: ReturnType<typeof createClient> | null = null;
-
-function getSupabaseClient() {
-  if (supabaseClient) {
-    return supabaseClient;
-  }
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error('Supabase environment variables not configured');
-  }
-
-  supabaseClient = createClient(url, key);
-  return supabaseClient;
-}
 
 export async function GET(_request: NextRequest) {
   try {
@@ -36,20 +17,7 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json(dealsCache.data);
     }
 
-    // Check environment variables first
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!url || !key) {
-      console.error('Missing Supabase environment variables');
-      const response = { deals: [], warning: 'Supabase not configured - environment variables missing' };
-      dealsCache.data = response;
-      dealsCache.timestamp = now;
-      return NextResponse.json(response);
-    }
-
     try {
-      const supabase = getSupabaseClient();
       const today = new Date().toISOString().split('T')[0];
 
       // Fetch all active deals that are currently valid
@@ -105,8 +73,6 @@ export async function GET(_request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient();
-
     // Note: getSession() on server requires proper request context
     // For now, we'll rely on RLS policies to handle auth
     const authHeader = request.headers.get('authorization');

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { supabase, SUPABASE_URL, SUPABASE_CONFIGURED } from '../../lib/auth';
 
 interface Product {
@@ -42,17 +43,19 @@ interface StockAlert {
 
 interface StockAdjustment {
   id: string;
-  product_id: string;
+  product_id: string | null;
   adjustment_type: string;
   quantity_change: number;
   previous_stock: number;
   new_stock: number;
-  reason: string;
-  created_at: string;
+  reason: string | null;
+  created_at: string | null;
+  adjusted_by: string | null;
+  order_id: string | null;
   products: {
     name: string;
-    sku: string;
-  };
+    sku: string | null;
+  } | null;
   users: {
     email: string;
   } | null;
@@ -796,10 +799,12 @@ export default function AdminProducts() {
                     isOutOfStock ? 'bg-red-50' : isLowStock ? 'bg-yellow-50' : ''
                   }`}>
                     <div className="flex items-start gap-3 mb-3">
-                      <img
+                      <Image
                         className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
                         src={product.images?.[0] || '/placeholder-product.jpg'}
                         alt={product.name}
+                        width={48}
+                        height={48}
                       />
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-bold text-gray-900 truncate">{product.name}</h4>
@@ -900,10 +905,12 @@ export default function AdminProducts() {
                       }`}>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <img
+                            <Image
                               className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
                               src={product.images?.[0] || '/placeholder-product.jpg'}
                               alt={product.name}
+                              width={40}
+                              height={40}
                             />
                             <div className="min-w-0">
                               <div className="text-sm font-medium text-gray-900 truncate">{product.name}</div>
@@ -1165,7 +1172,7 @@ export default function AdminProducts() {
                         {adjustment.users?.email || 'System'}
                       </td>
                       <td className="px-3 sm:px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                        {new Date(adjustment.created_at).toLocaleDateString()}
+                        {adjustment.created_at ? new Date(adjustment.created_at).toLocaleDateString() : 'N/A'}
                       </td>
                     </tr>
                   ))}

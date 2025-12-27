@@ -24,18 +24,18 @@ export interface DeliveryInfo {
 export interface PromoCode {
   id?: string;
   code: string;
-  description?: string;
-  discount_type: 'percentage' | 'fixed' | 'free_delivery';
+  description?: string | null;
+  discount_type: string | null;
   discount_value: number;
-  min_order_amount?: number;
-  max_uses?: number;
-  current_uses?: number;
-  uses_per_user_limit?: number;
-  is_active?: boolean;
-  is_public?: boolean;
-  start_date?: string;
-  end_date?: string;
-  expires_at?: string;
+  min_order_amount?: number | null;
+  max_uses?: number | null;
+  current_uses?: number | null;
+  uses_per_user_limit?: number | null;
+  is_active?: boolean | null;
+  is_public?: boolean | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  expires_at?: string | null;
 }
 
 class CartStore {

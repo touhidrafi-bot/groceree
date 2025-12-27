@@ -7,23 +7,23 @@ import { supabase } from '../../lib/auth';
 interface Order {
   id: string;
   order_number: string;
-  status: string;
-  total: number;
+  status: string | null;
+  total: number | null;
   delivery_address: string;
-  delivery_instructions?: string;
-  created_at: string;
+  delivery_instructions?: string | null;
+  created_at: string | null;
   customer: {
     first_name: string;
     last_name: string;
-    phone: string;
-  };
+    phone: string | null;
+  } | null;
   order_items: {
     quantity: number;
     unit_price: number;
     products: {
       name: string;
       unit: string;
-    };
+    } | null;
   }[];
 }
 
@@ -172,11 +172,11 @@ export default function DriverOrders() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">#{order.order_number}</h3>
                 <p className="text-sm text-gray-500">
-                  {new Date(order.created_at).toLocaleDateString()}
+                  {order.created_at ? new Date(order.created_at).toLocaleDateString() : 'Unknown date'}
                 </p>
               </div>
-              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                {order.status.replace('_', ' ')}
+              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status || 'unknown')}`}>
+                {order.status ? order.status.replace('_', ' ') : 'Unknown'}
               </span>
             </div>
 
@@ -217,10 +217,10 @@ export default function DriverOrders() {
               
               {order.status !== 'delivered' && (
                 <button
-                  onClick={() => updateOrderStatus(order.id, getNextStatus(order.status))}
+                  onClick={() => updateOrderStatus(order.id, getNextStatus(order.status || 'confirmed'))}
                   className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap text-sm"
                 >
-                  {getStatusAction(order.status)}
+                  {getStatusAction(order.status || 'confirmed')}
                 </button>
               )}
             </div>
@@ -352,12 +352,12 @@ export default function DriverOrders() {
                     <h3 className="text-lg font-semibold text-green-900 mb-3">Update Status</h3>
                     <button
                       onClick={() => {
-                        updateOrderStatus(selectedOrder.id, getNextStatus(selectedOrder.status));
+                        updateOrderStatus(selectedOrder.id, getNextStatus(selectedOrder.status || 'confirmed'));
                         setSelectedOrder(null);
                       }}
                       className="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors cursor-pointer whitespace-nowrap font-medium"
                     >
-                      {getStatusAction(selectedOrder.status)}
+                      {getStatusAction(selectedOrder.status || 'confirmed')}
                     </button>
                   </div>
                 )}

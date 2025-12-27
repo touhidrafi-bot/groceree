@@ -7,7 +7,6 @@ import ProductQuickView from './ProductQuickView';
 import FilterSidebar from './FilterSidebar';
 import CartNotification from './CartNotification';
 import { useCart } from '../../components/EnhancedCartProvider';
-import { SUPABASE_CONFIGURED } from '../../lib/auth';
 
 export interface Product {
   id: string;
@@ -61,16 +60,6 @@ function ProductsContentInner() {
       .replace(/[-_]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-
-  const toggleTag = (tag: string) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter(t => t !== tag));
-    } else {
-      setSelectedTags([...selectedTags, tag]);
-    }
-  };
-
-  const clearTags = () => setSelectedTags([]);
 
   // Initialize search and category from URL params
   useEffect(() => {

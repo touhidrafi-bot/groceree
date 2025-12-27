@@ -3,25 +3,26 @@ import { supabase, SUPABASE_CONFIGURED } from './auth';
 export interface WeeklyDeal {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   original_price: number;
   sale_price: number;
-  tag: string;
-  image_url: string;
+  tag: string | null;
+  image_url: string | null;
   valid_from: string;
   valid_to: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at?: string;
+  is_active: boolean | null;
+  created_at: string | null;
+  updated_at?: string | null;
+  created_by: string | null;
 }
 
 interface CreateDealInput {
   title: string;
-  description: string;
+  description: string | null;
   original_price: number;
   sale_price: number;
-  tag: string;
-  image_url: string;
+  tag: string | null;
+  image_url: string | null;
   valid_from: string;
   valid_to: string;
   is_active: boolean;
@@ -29,14 +30,14 @@ interface CreateDealInput {
 
 interface UpdateDealInput {
   title?: string;
-  description?: string;
+  description?: string | null;
   original_price?: number;
   sale_price?: number;
-  tag?: string;
-  image_url?: string;
+  tag?: string | null;
+  image_url?: string | null;
   valid_from?: string;
   valid_to?: string;
-  is_active?: boolean;
+  is_active?: boolean | null;
 }
 
 /**
@@ -185,7 +186,7 @@ export async function uploadDealImage(file: File): Promise<string> {
     const filePath = `deals/${fileName}`;
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('weekly-deals-images')
       .upload(filePath, file, { upsert: false });
 

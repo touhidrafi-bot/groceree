@@ -115,7 +115,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               name: cartItem.products.name,
               image: cartItem.products.image_url,
               price: cartItem.products.price,
-              originalPrice: cartItem.products.original_price,
+              originalPrice: cartItem.products.regular_price,
               unit: cartItem.products.unit,
               category: cartItem.products.category,
               isOrganic: cartItem.products.is_organic,

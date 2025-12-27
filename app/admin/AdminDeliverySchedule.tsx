@@ -5,8 +5,13 @@ import { supabase } from '../../lib/auth';
 
 interface DeliverySettings {
   id: string;
-  cutoff_time: string;
-  max_deliveries_per_slot: number;
+  cutoff_time: string | null;
+  max_deliveries_per_slot: number | null;
+  default_slot_capacity: number | null;
+  next_day_slots: any; // Json type
+  same_day_slots: any; // Json type
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 interface DeliveryWindow {
@@ -14,10 +19,12 @@ interface DeliveryWindow {
   name: string;
   start_time: string;
   end_time: string;
-  display_name: string;
-  is_active: boolean;
-  sort_order: number;
-  max_deliveries: number;
+  display_name: string | null;
+  is_active: boolean | null;
+  sort_order: number | null;
+  max_deliveries: number | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 interface ScheduledDelivery {
@@ -174,7 +181,15 @@ export default function AdminDeliverySchedule() {
 };
 
 
-  const saveWindow = async (windowData: Omit<DeliveryWindow, 'id'>) => {
+  const saveWindow = async (windowData: {
+    name: string;
+    start_time: string;
+    end_time: string;
+    display_name: string | null;
+    max_deliveries: number | null;
+    is_active: boolean | null;
+    sort_order: number | null;
+  }) => {
     try {
       if (editingWindow) {
         const { error } = await supabase.from('delivery_windows').update(windowData).eq('id', editingWindow.id);
@@ -327,7 +342,7 @@ export default function AdminDeliverySchedule() {
                   </label>
                   <input
                     type="time"
-                    value={settings.cutoff_time}
+                    value={settings?.cutoff_time || ''}
                     onChange={e => updateSettings({ cutoff_time: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
@@ -375,7 +390,7 @@ export default function AdminDeliverySchedule() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
-                        onClick={() => toggleWindowStatus(window.id, window.is_active)}
+                        onClick={() => toggleWindowStatus(window.id, window.is_active ?? false)}
                         className="text-blue-600 hover:text-blue-800 cursor-pointer whitespace-nowrap"
                       >
                         {window.is_active ? 'Deactivate' : 'Activate'}

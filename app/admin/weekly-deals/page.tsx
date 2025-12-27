@@ -6,21 +6,8 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import WeeklyDealsForm from '@/components/admin/WeeklyDealsForm';
+import { WeeklyDeal } from '@/lib/weekly-deals';
 import { supabase, SUPABASE_CONFIGURED } from '@/lib/auth';
-
-interface WeeklyDeal {
-  id: string;
-  title: string;
-  description: string;
-  original_price: number;
-  sale_price: number;
-  tag: string;
-  image_url: string;
-  valid_from: string;
-  valid_to: string;
-  is_active: boolean;
-  created_at: string;
-}
 
 export default function WeeklyDealsAdminPage() {
   const router = useRouter();
@@ -74,15 +61,16 @@ export default function WeeklyDealsAdminPage() {
   // --------------------------------------------------------------
   // Toggle Active
   // --------------------------------------------------------------
-  const handleToggleActive = async (id: string, isActive: boolean) => {
+  const handleToggleActive = async (id: string, isActive: boolean | null) => {
+    const newActiveState = !isActive;
     const { error } = await supabase
       .from('weekly_deals')
-      .update({ is_active: !isActive })
+      .update({ is_active: newActiveState })
       .eq('id', id);
 
     if (!error) {
       setDeals(prev =>
-        prev.map(d => d.id === id ? { ...d, is_active: !isActive } : d)
+        prev.map(d => d.id === id ? { ...d, is_active: newActiveState } : d)
       );
     }
   };
