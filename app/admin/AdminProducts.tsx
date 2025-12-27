@@ -276,7 +276,9 @@ export default function AdminProducts() {
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (!error) {
+      if (error) {
+        console.error('Error fetching stock adjustments from Supabase:', error);
+      } else {
         setStockAdjustments(adjustments || []);
       }
     } catch (error) {

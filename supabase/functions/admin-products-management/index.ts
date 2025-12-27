@@ -155,17 +155,26 @@ serve(async (req) => {
       const { data: product, error } = await supabaseClient
         .from('products')
         .insert({
-          ...sanitizedProductData,
+          name: sanitizedProductData.name,
           sku,
+          description: sanitizedProductData.description,
+          price: sanitizedProductData.price,
+          regular_price: sanitizedProductData.regular_price || null,
+          bottle_price: sanitizedProductData.bottle_price || 0,
+          department: sanitizedProductData.department,
+          subdepartment: sanitizedProductData.subdepartment,
+          scalable: sanitizedProductData.scalable || false,
           tax_type: taxType,
-          category: productData.department, // Required field
+          category: productData.department,
+          country_of_origin: sanitizedProductData.country_of_origin,
+          unit: sanitizedProductData.unit,
           stock_quantity: productData.stock_quantity || 0,
           in_stock: productData.stock_quantity || 0,
-          regular_price: sanitizedProductData.regular_price || null,
-          original_price: sanitizedProductData.regular_price || null, // For backward compatibility
+          low_stock_threshold: sanitizedProductData.low_stock_threshold,
+          images: sanitizedProductData.images,
+          is_active: sanitizedProductData.is_active !== undefined ? sanitizedProductData.is_active : true,
           dietary_tags: dietaryTagsArray,
-          tags: dietaryTagsArray, // For backward compatibility
-          bottle_price: sanitizedProductData.bottle_price || 0
+          tags: dietaryTagsArray,
         })
         .select()
         .single()
@@ -205,16 +214,25 @@ serve(async (req) => {
       const { data: product, error } = await supabaseClient
         .from('products')
         .update({
-          ...sanitizedProductData,
+          name: sanitizedProductData.name,
+          description: sanitizedProductData.description,
+          price: sanitizedProductData.price,
+          regular_price: sanitizedProductData.regular_price || null,
+          bottle_price: sanitizedProductData.bottle_price || 0,
+          department: sanitizedProductData.department,
+          subdepartment: sanitizedProductData.subdepartment,
+          scalable: sanitizedProductData.scalable || false,
           tax_type: taxType,
-          category: productData.department, // Required field
+          category: productData.department,
+          country_of_origin: sanitizedProductData.country_of_origin,
+          unit: sanitizedProductData.unit,
           stock_quantity: productData.stock_quantity || 0,
           in_stock: productData.stock_quantity || 0,
-          regular_price: sanitizedProductData.regular_price || null,
-          original_price: sanitizedProductData.regular_price || null, // For backward compatibility
+          low_stock_threshold: sanitizedProductData.low_stock_threshold,
+          images: sanitizedProductData.images,
+          is_active: sanitizedProductData.is_active !== undefined ? sanitizedProductData.is_active : true,
           dietary_tags: dietaryTagsArray,
-          tags: dietaryTagsArray, // For backward compatibility
-          bottle_price: sanitizedProductData.bottle_price || 0,
+          tags: dietaryTagsArray,
           updated_at: new Date().toISOString()
         })
         .eq('id', productId)

@@ -115,7 +115,7 @@ serve(async (req) => {
         name: product.name,
         weight: product.unit,
         price: product.price,
-        originalPrice: product.original_price || product.regular_price || null,
+        originalPrice: product.regular_price || null,
         bottle_price: product.bottle_price || 0,
         images: product.images || [],
         image:
@@ -130,7 +130,7 @@ serve(async (req) => {
         tags: finalDietaryTags,
         dietary_tags: finalDietaryTags,
         isOnSale: (() => {
-          const regularPrice = product.original_price || product.regular_price;
+          const regularPrice = product.regular_price;
           if (!regularPrice || regularPrice <= 0) return false;
           return Number(regularPrice) > Number(product.price);
         })(),
