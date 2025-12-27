@@ -18,14 +18,14 @@ serve(async (req: Request) => {
     const payload = await req.json();
     const { orderId, emailType } = payload ?? {};
 
-    console.log("📨 Email request:", payload);
+    console.log("📨 Email request:", { orderId, emailType });
 
     if (!orderId || !emailType) {
       return error("orderId and emailType are required", 400);
     }
 
-    if (!["admin_new_order", "final_invoice"].includes(emailType)) {
-      return error("Invalid emailType", 400);
+    if (emailType !== "final_invoice") {
+      return error(`Invalid emailType: ${emailType}. Only 'final_invoice' is supported.`, 400);
     }
 
     // Env check
@@ -33,9 +33,19 @@ serve(async (req: Request) => {
     const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const BREVO_KEY = Deno.env.get("BREVO_API_KEY");
 
-    if (!SUPABASE_URL || !SUPABASE_KEY || !BREVO_KEY) {
-      console.error("❌ Missing env vars");
-      return error("Server configuration error", 500);
+    if (!SUPABASE_URL) {
+      console.error("❌ Missing SUPABASE_URL");
+      return error("Missing SUPABASE_URL configuration", 500);
+    }
+
+    if (!SUPABASE_KEY) {
+      console.error("❌ Missing SUPABASE_SERVICE_ROLE_KEY");
+      return error("Missing SUPABASE_SERVICE_ROLE_KEY configuration", 500);
+    }
+
+    if (!BREVO_KEY) {
+      console.error("❌ Missing BREVO_API_KEY environment variable");
+      return error("Email service not configured. Please set BREVO_API_KEY environment variable.", 500);
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -78,41 +88,35 @@ serve(async (req: Request) => {
     }
 
     // -----------------------
-    // ADMIN NEW ORDER EMAIL
-    // -----------------------
-    if (emailType === "admin_new_order") {
-      const res = await sendBrevo({
-        to: "orders@groceree.ca", // change if needed
-        subject: `🛒 New Order · #${order.order_number}`,
-        html: adminEmail(order),
-        apiKey: BREVO_KEY,
-      });
-
-      return ok(res);
-    }
-
-    // -----------------------
     // CUSTOMER FINAL INVOICE
     // -----------------------
-    if (emailType === "final_invoice") {
-      if (!order.customer?.email) {
-        return error("Customer email missing", 400);
-      }
+    if (!order.customer?.email) {
+      console.error("❌ Customer email is missing");
+      return error("Customer email missing", 400);
+    }
+
+    try {
+      console.log("🔄 Preparing customer invoice email for:", order.customer.email);
+      const emailHtml = customerInvoice(order);
+      console.log("✅ Invoice HTML generated, length:", emailHtml.length);
 
       const res = await sendBrevo({
         to: order.customer.email,
         subject: `Your Final Invoice · Order #${order.order_number}`,
-        html: customerInvoice(order),
+        html: emailHtml,
         apiKey: BREVO_KEY,
       });
 
+      console.log("✅ Invoice email sent successfully");
       return ok(res);
+    } catch (err: any) {
+      console.error("❌ Invoice email failed:", err.message);
+      throw err;
     }
-
-    return error("Unhandled emailType", 500);
   } catch (err: any) {
-    console.error("🔥 Email function crash:", err);
-    return error(err.message ?? "Internal error", 500);
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error("🔥 Email function error:", errorMsg);
+    return error(errorMsg, 500);
   }
 });
 
@@ -140,60 +144,103 @@ async function sendBrevo({
   html,
   apiKey,
 }: any) {
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "api-key": apiKey,
-    },
-    body: JSON.stringify({
+  // Validate email
+  if (!to || !to.includes("@")) {
+    throw new Error(`Invalid recipient email: ${to}`);
+  }
+
+  if (!subject || !subject.trim()) {
+    throw new Error("Email subject is required");
+  }
+
+  if (!html || !html.trim()) {
+    throw new Error("Email content (HTML) is required");
+  }
+
+  try {
+    console.log("📤 Sending email via Brevo to:", to);
+
+    const requestBody = {
       sender: { email: "orders@groceree.ca", name: "Groceree" },
       to: [{ email: to }],
       subject,
       htmlContent: html,
-    }),
-  });
+    };
 
-  const body = await res.json();
+    console.log("📋 Email request details:", {
+      to,
+      subject,
+      htmlLength: html.length
+    });
 
-  if (!res.ok) {
-    console.error("❌ Brevo error:", body);
-    throw new Error(body.message ?? "Brevo send failed");
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    let body: any = {};
+    try {
+      body = await res.json();
+    } catch (e) {
+      console.error("❌ Failed to parse Brevo response as JSON");
+      throw new Error(`Brevo API returned ${res.status}: ${res.statusText}`);
+    }
+
+    if (!res.ok) {
+      console.error("❌ Brevo API error:", {
+        status: res.status,
+        statusText: res.statusText,
+        response: body
+      });
+      const errorMsg = body.message || body.error || `HTTP ${res.status}: ${res.statusText}`;
+      throw new Error(`Brevo API error: ${errorMsg}`);
+    }
+
+    console.log("✅ Email sent successfully");
+    return body;
+  } catch (err: any) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error("❌ Email send failed:", errorMsg);
+    throw err;
   }
-
-  return body;
 }
 
 /* ---------------- EMAIL TEMPLATES ---------------- */
 
-function adminEmail(order: any) {
-  return `
-    <h2>New Order Received</h2>
-    <p><strong>Order:</strong> #${order.order_number}</p>
-    <p><strong>Customer:</strong> ${order.customer.first_name} ${order.customer.last_name}</p>
-    <p><strong>Estimated Total:</strong> $${order.total}</p>
-    <p>
-      <a href="https://admin.groceree.ca/orders/${order.id}">
-        Open in Admin Dashboard
-      </a>
-    </p>
-  `;
-}
-
 function customerInvoice(order: any) {
-  const rows = order.order_items.map((i: any) => `
-    <tr>
-      <td>${i.products.name}</td>
-      <td>${i.quantity}</td>
-      <td>${i.products.scalable ? i.final_weight ?? "-" : "-"}</td>
-      <td>$${Number(i.unit_price).toFixed(2)}</td>
-      <td>$${Number(i.total_price).toFixed(2)}</td>
-    </tr>
-  `).join("");
+  const items = order.order_items || [];
+
+  const rows = items.map((i: any) => {
+    const productName = i.products?.name || "Unknown Product";
+    const quantity = i.quantity || 0;
+    const weight = i.products?.scalable ? (i.final_weight ?? "-") : "-";
+    const unitPrice = Number(i.unit_price || 0).toFixed(2);
+    const totalPrice = Number(i.total_price || 0).toFixed(2);
+
+    return `
+      <tr>
+        <td>${productName}</td>
+        <td>${quantity}</td>
+        <td>${weight}</td>
+        <td>$${unitPrice}</td>
+        <td>$${totalPrice}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const subtotal = Number(order.subtotal || 0).toFixed(2);
+  const tax = Number(order.tax || 0).toFixed(2);
+  const deliveryFee = Number(order.delivery_fee || 0).toFixed(2);
+  const tipAmount = Number(order.tip_amount || 0).toFixed(2);
+  const total = Number(order.total || 0).toFixed(2);
 
   return `
     <h2>Your Final Invoice</h2>
-    <p>Order #${order.order_number}</p>
+    <p>Order #${order.order_number || "N/A"}</p>
 
     <table border="1" cellpadding="8" cellspacing="0">
       <thead>
@@ -201,19 +248,19 @@ function customerInvoice(order: any) {
           <th>Item</th>
           <th>Qty</th>
           <th>Weight</th>
-          <th>Unit</th>
+          <th>Unit Price</th>
           <th>Total</th>
         </tr>
       </thead>
-      <tbody>${rows}</tbody>
+      <tbody>${rows || "<tr><td colspan='5'>No items</td></tr>"}</tbody>
     </table>
 
-    <p><strong>Subtotal:</strong> $${order.subtotal}</p>
-    <p><strong>Tax:</strong> $${order.tax}</p>
-    <p><strong>Delivery:</strong> $${order.delivery_fee}</p>
-    <p><strong>Tip:</strong> $${order.tip_amount}</p>
+    <p><strong>Subtotal:</strong> $${subtotal}</p>
+    <p><strong>Tax:</strong> $${tax}</p>
+    <p><strong>Delivery:</strong> $${deliveryFee}</p>
+    <p><strong>Tip:</strong> $${tipAmount}</p>
 
-    <h3>Final Total: $${order.total}</h3>
+    <h3>Final Total: $${total}</h3>
 
     <p>Thank you for shopping with Groceree 🥕</p>
   `;

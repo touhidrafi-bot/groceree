@@ -368,9 +368,53 @@ serve(async (req) => {
       console.error('Error clearing cart:', error)
     }
 
+    // Send admin notification email with full order details
+    try {
+      console.log('📧 Attempting to send admin notification for order:', order.id)
+      const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY')
+
+      if (!BREVO_API_KEY) {
+        console.warn('⚠️ Cannot send admin email: BREVO_API_KEY not configured')
+      } else {
+        // Fetch full order details with items for email
+        const { data: fullOrder } = await supabaseClient
+          .from('orders')
+          .select(`
+            *,
+            order_items(
+              quantity,
+              unit_price,
+              total_price,
+              products(name, unit)
+            )
+          `)
+          .eq('id', order.id)
+          .single()
+
+        if (fullOrder) {
+          const adminEmailHtml = generateAdminOrderNotification(fullOrder, firstName, lastName)
+          const adminEmailResult = await sendBrevoEmail({
+            to: 'touhid.rafi@gmail.com',
+            subject: `🛒 New Order Created - Order #${order.order_number}`,
+            html: adminEmailHtml,
+            apiKey: BREVO_API_KEY
+          })
+
+          if (adminEmailResult.success) {
+            console.log('✅ Admin notification email sent successfully')
+          } else {
+            console.warn('⚠️ Admin notification email failed:', adminEmailResult)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error sending admin notification email:', error)
+      // Don't fail the order creation if email fails
+    }
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         order: order,
         orderId: order.id,
         orderNumber: order.order_number,
@@ -386,8 +430,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error:', error)
     return new Response(
-      JSON.stringify({ 
-        success: false, 
+      JSON.stringify({
+        success: false,
         error: 'An unexpected error occurred. Please try again.',
         details: error.message
       }),
@@ -398,3 +442,280 @@ serve(async (req) => {
     )
   }
 })
+
+// Helper function to generate admin order notification email
+function generateAdminOrderNotification(order: any, firstName: string, lastName: string): string {
+  const itemsHtml = (order.order_items || []).map((item: any) => {
+    const productName = item.products?.name || 'Unknown Product'
+    const unit = item.products?.unit || 'unit'
+    const quantity = item.quantity || 0
+    const unitPrice = Number(item.unit_price || 0).toFixed(2)
+    const totalPrice = Number(item.total_price || 0).toFixed(2)
+
+    return `
+      <tr>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${productName}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${quantity} ${unit}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">$${unitPrice}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 500;">$${totalPrice}</td>
+      </tr>
+    `
+  }).join('')
+
+  const subtotal = Number(order.subtotal || 0).toFixed(2)
+  const tax = Number(order.tax || 0).toFixed(2)
+  const deliveryFee = Number(order.delivery_fee || 0).toFixed(2)
+  const discount = Number(order.discount || 0).toFixed(2)
+  const tipAmount = Number(order.tip_amount || 0).toFixed(2)
+  const total = Number(order.total || 0).toFixed(2)
+
+  const paymentMethodDisplay = order.payment_method === 'interac' ? 'Interac e-Transfer' : 'Credit Card'
+  const orderDate = new Date(order.created_at).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>New Order Notification - Groceree</title>
+    </head>
+    <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f9fafb;">
+      <div style="max-width: 800px; margin: 0 auto; background-color: #ffffff;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center;">
+          <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">🛒 NEW ORDER ALERT</h1>
+          <p style="margin: 8px 0 0 0; color: #d1fae5; font-size: 16px;">Order #${order.order_number}</p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+          <h2 style="margin: 0 0 30px 0; color: #111827; font-size: 24px; font-weight: 600;">
+            Order Details
+          </h2>
+
+          <!-- Customer Info -->
+          <div style="background-color: #f0fdf4; border: 2px solid #10b981; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+            <h3 style="margin: 0 0 15px 0; color: #15803d; font-size: 18px; font-weight: 600;">
+              Customer Information
+            </h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151; width: 150px;">Name:</td>
+                <td style="padding: 8px 0; color: #111827;">${firstName} ${lastName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151;">Email:</td>
+                <td style="padding: 8px 0; color: #111827;">${order.customer_email || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151;">Phone:</td>
+                <td style="padding: 8px 0; color: #111827;">${order.customer_phone || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151;">Order Date:</td>
+                <td style="padding: 8px 0; color: #111827;">${orderDate}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Delivery Info -->
+          <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+            <h3 style="margin: 0 0 15px 0; color: #1e40af; font-size: 18px; font-weight: 600;">
+              Delivery Information
+            </h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151; width: 150px;">Address:</td>
+                <td style="padding: 8px 0; color: #111827;">${order.delivery_address || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151;">Delivery Date:</td>
+                <td style="padding: 8px 0; color: #111827;">${order.delivery_date || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151;">Time Slot:</td>
+                <td style="padding: 8px 0; color: #111827;">${order.delivery_time_slot || 'N/A'}</td>
+              </tr>
+              ${order.delivery_instructions ? `
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151;">Instructions:</td>
+                <td style="padding: 8px 0; color: #111827;">${order.delivery_instructions}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+
+          <!-- Order Items -->
+          <h3 style="margin: 0 0 15px 0; color: #111827; font-size: 18px; font-weight: 600;">
+            Order Items
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f9fafb;">
+                <th style="padding: 16px; text-align: left; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">
+                  Product
+                </th>
+                <th style="padding: 16px; text-align: center; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">
+                  Qty
+                </th>
+                <th style="padding: 16px; text-align: right; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">
+                  Unit Price
+                </th>
+                <th style="padding: 16px; text-align: right; font-weight: 600; color: #374151; border-bottom: 1px solid #e5e7eb;">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <!-- Total -->
+          <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; margin-bottom: 30px;">
+            <div style="display: flex; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb;">
+              <span style="color: #374151; font-weight: 500;">Subtotal:</span>
+              <span style="color: #111827; font-weight: 600;">$${subtotal}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+              <span style="color: #374151; font-weight: 500;">Tax:</span>
+              <span style="color: #111827; font-weight: 600;">$${tax}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+              <span style="color: #374151; font-weight: 500;">Delivery Fee:</span>
+              <span style="color: #111827; font-weight: 600;">$${deliveryFee}</span>
+            </div>
+            ${discount !== '0.00' ? `
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+              <span style="color: #374151; font-weight: 500;">Discount:</span>
+              <span style="color: #10b981; font-weight: 600;">-$${discount}</span>
+            </div>
+            ` : ''}
+            ${tipAmount !== '0.00' ? `
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb;">
+              <span style="color: #374151; font-weight: 500;">Tip:</span>
+              <span style="color: #111827; font-weight: 600;">$${tipAmount}</span>
+            </div>
+            ` : ''}
+            <div style="display: flex; justify-content: space-between; padding-top: 12px; margin-top: 12px; border-top: 2px solid #e5e7eb;">
+              <span style="color: #111827; font-weight: 600; font-size: 18px;">Total:</span>
+              <span style="color: #10b981; font-weight: 600; font-size: 18px;">$${total}</span>
+            </div>
+          </div>
+
+          <!-- Payment Info -->
+          <div style="background-color: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+            <h3 style="margin: 0 0 15px 0; color: #92400e; font-size: 18px; font-weight: 600;">
+              Payment Information
+            </h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151; width: 150px;">Payment Method:</td>
+                <td style="padding: 8px 0; color: #111827;">${paymentMethodDisplay}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; font-weight: 500; color: #374151;">Payment Status:</td>
+                <td style="padding: 8px 0;">
+                  <span style="display: inline-block; background-color: #fcd34d; color: #92400e; padding: 4px 12px; border-radius: 4px; font-weight: 500;">
+                    ${order.payment_status || 'pending'}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="margin: 0; color: #6b7280; font-size: 14px; text-align: center;">
+            Log in to your admin dashboard to manage this order.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+          <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
+            Groceree Admin Notification
+          </p>
+          <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+            This is an automated notification. Do not reply to this email.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+// Helper function to send email via Brevo
+async function sendBrevoEmail(emailData: any) {
+  try {
+    const { to, subject, html, apiKey } = emailData
+
+    // Validate inputs
+    if (!to || !to.includes('@')) {
+      throw new Error(`Invalid recipient email: ${to}`)
+    }
+
+    if (!subject || !subject.trim()) {
+      throw new Error('Email subject is required')
+    }
+
+    if (!html || !html.trim()) {
+      throw new Error('Email content (HTML) is required')
+    }
+
+    console.log('📤 Sending email via Brevo to:', to)
+
+    const requestBody = {
+      sender: { email: 'orders@groceree.ca', name: 'Groceree' },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html
+    }
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    let responseBody: any = {}
+    try {
+      responseBody = await response.json()
+    } catch (e) {
+      console.error('❌ Failed to parse Brevo response as JSON')
+      throw new Error(`Brevo API returned ${response.status}: ${response.statusText}`)
+    }
+
+    if (!response.ok) {
+      console.error('❌ Brevo API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        response: responseBody
+      })
+      const errorMsg = responseBody.message || responseBody.error || `HTTP ${response.status}: ${response.statusText}`
+      throw new Error(`Brevo API error: ${errorMsg}`)
+    }
+
+    console.log('✅ Email sent successfully to:', to)
+    return {
+      success: true,
+      messageId: responseBody.messageId || `email_${Date.now()}`
+    }
+  } catch (err: any) {
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    console.error('❌ Email send failed:', errorMsg)
+    return {
+      success: false,
+      error: errorMsg
+    }
+  }
+}

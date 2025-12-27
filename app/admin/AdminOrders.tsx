@@ -988,8 +988,10 @@ export default function AdminOrders() {
 
   const sendOrderEmail = async (orderId: string, emailType: string) => {
     setSendingEmail(prev => ({ ...prev, [`${orderId}_${emailType}`]: true }));
-    
+
     try {
+      console.log('Sending email:', { orderId, emailType });
+
       const { data, error } = await supabase.functions.invoke('order-email-notifications', {
         body: {
           orderId,
@@ -997,12 +999,20 @@ export default function AdminOrders() {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(`Email service error: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
+      if (!data) {
+        throw new Error('No response from email service');
+      }
 
       if (data.success) {
-        alert(`${emailType === 'payment_confirmation' ? 'Payment invoice' : 'Delivery confirmation'} sent successfully!`);
+        const typeLabel = emailType === 'admin_new_order' ? 'Admin notification' : emailType === 'final_invoice' ? 'Customer invoice' : 'Email';
+        alert(`${typeLabel} sent successfully!`);
       } else {
-        throw new Error(data.error || 'Failed to send email');
+        throw new Error(data.error || 'Email service returned an error');
       }
     } catch (error) {
       console.error('Error sending email:', error);
@@ -1500,11 +1510,11 @@ export default function AdminOrders() {
                 <h3 className="text-sm sm:text-base font-semibold text-green-900 mb-3">Email Notifications</h3>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
                   <button
-                    onClick={() => sendOrderEmail(selectedOrder.id, 'payment_confirmation')}
-                    disabled={sendingEmail[`${selectedOrder.id}_payment_confirmation`]}
+                    onClick={() => sendOrderEmail(selectedOrder.id, 'final_invoice')}
+                    disabled={sendingEmail[`${selectedOrder.id}_final_invoice`]}
                     className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-xs sm:text-sm font-medium whitespace-nowrap flex items-center justify-center gap-2"
                   >
-                    {sendingEmail[`${selectedOrder.id}_payment_confirmation`] ? (
+                    {sendingEmail[`${selectedOrder.id}_final_invoice`] ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         <span className="hidden sm:inline">Sending...</span>
@@ -1512,27 +1522,8 @@ export default function AdminOrders() {
                     ) : (
                       <>
                         <i className="ri-mail-send-line"></i>
-                        <span className="hidden sm:inline">Invoice</span>
+                        <span className="hidden sm:inline">Send Invoice Email</span>
                         <span className="sm:hidden">Invoice</span>
-                      </>
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={() => sendOrderEmail(selectedOrder.id, 'delivery_confirmation')}
-                    disabled={sendingEmail[`${selectedOrder.id}_delivery_confirmation`]}
-                    className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-xs sm:text-sm font-medium whitespace-nowrap flex items-center justify-center gap-2"
-                  >
-                    {sendingEmail[`${selectedOrder.id}_delivery_confirmation`] ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        <span className="hidden sm:inline">Sending...</span>
-                      </>
-                    ) : (
-                      <>
-                        <i className="ri-truck-line"></i>
-                        <span className="hidden sm:inline">Delivery</span>
-                        <span className="sm:hidden">Delivery</span>
                       </>
                     )}
                   </button>

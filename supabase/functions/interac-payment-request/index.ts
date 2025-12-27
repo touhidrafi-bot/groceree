@@ -68,13 +68,14 @@ serve(async (req) => {
     const emailSubject = `Groceree Order Payment Request - Order #${order.order_number}`
     const emailBody = generatePaymentRequestEmail(order, customerName)
     const smsMessage = generatePaymentRequestSMS(order)
+    const brevoKey = Deno.env.get('BREVO_API_KEY')
 
-    // Send email notification
-    const emailResult = await sendEmail({
+    // Send email notification to customer
+    const emailResult = await sendBrevoEmail({
       to: order.customer.email,
-      from: 'payments@groceree.ca',
       subject: emailSubject,
-      html: emailBody
+      html: emailBody,
+      apiKey: brevoKey
     })
 
     // Send SMS notification (optional)
@@ -107,10 +108,10 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: emailResult.success, 
+      JSON.stringify({
+        success: emailResult.success,
         message: emailResult.success ? 'Payment request sent successfully' : 'Failed to send payment request',
-        emailId: emailResult.emailId,
+        emailId: emailResult.messageId,
         smsId: smsResult.smsId
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -272,7 +273,7 @@ function generatePaymentRequestEmail(order: any, customerName: string): string {
             Groceree - Fresh groceries delivered to your door
           </p>
           <p style="margin: 0; color: #9ca3af; font-size: 12px;">
-            Questions? Reply to this email or contact us at support@groceree.ca
+            Questions? Reply to this email or contact us at groceree@outlook.com
           </p>
         </div>
       </div>
@@ -285,21 +286,65 @@ function generatePaymentRequestSMS(order: any): string {
   return `Groceree: Your order #${order.order_number} is ready! Please send $${parseFloat(order.total).toFixed(2)} via Interac e-Transfer to payments@groceree.ca with your order number in the message. Thank you!`
 }
 
-async function sendEmail(emailData: any) {
-  // Mock email sending function
-  // In production, integrate with SendGrid, AWS SES, or similar service
-  console.log('Sending payment request email:', {
-    to: emailData.to,
-    from: emailData.from,
-    subject: emailData.subject
-  })
-  
-  // Simulate email sending delay
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  
-  return {
-    success: true,
-    emailId: `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+async function sendBrevoEmail(emailData: any) {
+  try {
+    const { to, subject, html, apiKey } = emailData
+
+    if (!apiKey) {
+      console.error('❌ BREVO_API_KEY not configured')
+      return {
+        success: false,
+        messageId: null,
+        error: 'Email service not configured'
+      }
+    }
+
+    if (!to || !to.includes('@')) {
+      throw new Error(`Invalid recipient email: ${to}`)
+    }
+
+    console.log('📤 Sending email via Brevo to:', to)
+
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey,
+      },
+      body: JSON.stringify({
+        sender: { email: 'orders@groceree.ca', name: 'Groceree' },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: html,
+      }),
+    })
+
+    const body = await res.json()
+
+    if (!res.ok) {
+      console.error('❌ Brevo API error:', {
+        status: res.status,
+        error: body
+      })
+      return {
+        success: false,
+        messageId: null,
+        error: body.message || `HTTP ${res.status}`
+      }
+    }
+
+    console.log('✅ Email sent successfully')
+    return {
+      success: true,
+      messageId: body.messageId || `email_${Date.now()}`
+    }
+  } catch (err: any) {
+    console.error('❌ Email send failed:', err.message)
+    return {
+      success: false,
+      messageId: null,
+      error: err.message
+    }
   }
 }
 
