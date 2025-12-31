@@ -67,8 +67,11 @@ export default function DriverDashboard() {
       });
 
       setRecentOrders(orders?.slice(0, 5) || []);
-    } catch (error) {
-      console.error('Error loading driver data:', error);
+    } catch (error: any) {
+      console.error('Error loading driver data:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
     } finally {
       setLoading(false);
     }

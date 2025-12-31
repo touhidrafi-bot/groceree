@@ -52,8 +52,11 @@ export default function AdminUsers() {
 
       if (error) throw error;
       setUsers(data || []);
-    } catch (error) {
-      console.error('Error loading users:', error);
+    } catch (error: any) {
+      console.error('Error loading users:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
     } finally {
       setLoading(false);
     }

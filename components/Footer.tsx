@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -39,8 +38,11 @@ export default function Footer() {
       } else {
         setSubmitMessage('Failed to subscribe. Please try again.');
       }
-    } catch (error) {
-      console.error('Newsletter subscription error:', error);
+    } catch (error: any) {
+      console.error('Newsletter subscription error:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
       setSubmitMessage('Failed to subscribe. Please try again.');
     } finally {
       setIsSubmitting(false);

@@ -142,7 +142,28 @@ class AuthService {
         .single();
 
       if (error) {
-        console.error('Error loading user profile from database:', error);
+        const errorMessage = error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error !== null && 'message' in error
+          ? (error as any).message
+          : 'Unknown database error';
+        const errorCode = typeof error === 'object' && error !== null && 'code' in error
+          ? (error as any).code
+          : 'UNKNOWN';
+
+        console.error('Error loading user profile from database:', {
+          code: errorCode,
+          message: errorMessage,
+          statusCode: typeof error === 'object' && error !== null && 'status' in error ? (error as any).status : 'N/A'
+        });
+
+        // If user not found (404), treat as no profile rather than error
+        if (errorCode === 'PGRST116' || (typeof error === 'object' && error !== null && 'status' in error && (error as any).status === 406)) {
+          console.warn('User profile not found for ID:', userId);
+          this.setState({ user: null, error: null });
+          return;
+        }
+
         throw error;
       }
 
@@ -152,9 +173,13 @@ class AuthService {
         console.warn('No user profile found for ID:', userId);
         this.setState({ user: null, error: null });
       }
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-      this.setState({ error: 'Failed to load user profile' });
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to load user profile';
+      console.error('Error loading user profile:', {
+        message: errorMessage,
+        code: error?.code || 'UNKNOWN'
+      });
+      this.setState({ error: null }); // Clear error to allow app to continue
     }
   }
 

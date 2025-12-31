@@ -78,8 +78,11 @@ export default function CategoryModal({ isOpen, onClose }: CategoryModalProps) {
       }));
 
       setCategories(categoriesData);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
+    } catch (error: any) {
+      console.error('Error fetching categories:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
       // Fallback to default categories
       setCategories([
         { id: '1', name: 'Produce', icon: 'ri-leaf-line', count: 0, color: 'bg-green-100 text-green-600' },

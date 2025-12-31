@@ -231,8 +231,11 @@ export default function AdminProducts() {
           });
         }
       }
-    } catch (error) {
-      console.error('Error fetching products:', error);
+    } catch (error: any) {
+      console.error('Error fetching products:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
       showNotification('error', 'Failed to load products');
     } finally {
       setLoading(false);

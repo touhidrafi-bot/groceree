@@ -167,8 +167,11 @@ export default function AdminReports() {
         topCustomers
       });
 
-    } catch (error) {
-      console.error('Error loading report data:', error);
+    } catch (error: any) {
+      console.error('Error loading report data:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
     } finally {
       setLoading(false);
     }

@@ -32,7 +32,10 @@ export default function AuthCallback() {
           setLoading(false);
         }
       } catch (error: any) {
-        console.error('Auth callback error:', error);
+        console.error('Auth callback error:', {
+          message: error?.message || 'Unknown error',
+          code: error?.code || 'UNKNOWN'
+        });
         setError(error.message || 'Failed to confirm email');
         setLoading(false);
       }

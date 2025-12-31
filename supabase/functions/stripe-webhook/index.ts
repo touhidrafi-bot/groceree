@@ -28,7 +28,7 @@ serve(async (req) => {
           const updates: any = { payment_status: 'paid', payment_date: new Date().toISOString(), status: 'confirmed', updated_at: new Date().toISOString() }
           await supabaseClient.from('orders').update(updates).eq('id', orderId)
 
-          await supabaseClient.functions.invoke('order-email-notifications', { body: { orderId, emailType: 'customer_invoice', automaticTrigger: true } })
+          await supabaseClient.functions.invoke('order-email-notifications', { body: { orderId, emailType: 'final_invoice', automaticTrigger: true } })
         }
         break
       }
@@ -50,4 +50,3 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: String(err) }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
-

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -76,8 +75,11 @@ export default function ProfileContent() {
           totalUsers: users.data?.length || 0
         });
       }
-    } catch (_error) {
-      console.error('Error loading stats:', _error);
+    } catch (_error: any) {
+      console.error('Error loading stats:', {
+        message: _error?.message || 'Unknown error',
+        code: _error?.code || 'UNKNOWN'
+      });
     }
   };
 

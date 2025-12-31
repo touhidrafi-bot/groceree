@@ -59,8 +59,11 @@ export default function AdminDeliverySchedule() {
     setLoading(true);
     try {
       await Promise.all([loadSettings(), loadWindows(), loadScheduledDeliveries()]);
-    } catch (error) {
-      console.error('Error loading data:', error);
+    } catch (error: any) {
+      console.error('Error loading data:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
     } finally {
       setLoading(false);
     }

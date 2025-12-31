@@ -60,8 +60,11 @@ export default function DriverOrders() {
 
       if (error) throw error;
       setOrders(data || []);
-    } catch (error) {
-      console.error('Error loading driver orders:', error);
+    } catch (error: any) {
+      console.error('Error loading driver orders:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
     } finally {
       setLoading(false);
     }

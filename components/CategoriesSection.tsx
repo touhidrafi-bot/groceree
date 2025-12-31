@@ -77,9 +77,12 @@ export default function CategoriesSection() {
       }));
 
       setCategories(categoriesData);
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Error fetching categories:', errorMessage, error);
+      console.error('Error fetching categories:', {
+        message: errorMessage,
+        code: error?.code || 'UNKNOWN'
+      });
       // Fallback to default categories
       setCategories([
         { id: '1', name: 'Produce', icon: 'ri-leaf-line', count: 0, color: 'bg-green-100 text-green-600' },

@@ -59,8 +59,11 @@ export default function RecommendedProducts() {
       // Get random 8 products for recommendations
       const shuffled = allProducts.sort(() => 0.5 - Math.random());
       setProducts(shuffled.slice(0, 8));
-    } catch (error) {
-      console.error('Error fetching products:', error);
+    } catch (error: any) {
+      console.error('Error fetching products:', {
+        message: error?.message || 'Unknown error',
+        code: error?.code || 'UNKNOWN'
+      });
       setProducts([]);
     } finally {
       setLoading(false);
