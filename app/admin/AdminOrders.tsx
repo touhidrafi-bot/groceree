@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/auth';
+import OrderEditModal from '../../components/admin/OrderEditModal';
 
 interface Order {
   id: string;
@@ -11,14 +12,14 @@ interface Order {
   payment_status: string;
   payment_date?: string;
   stripe_payment_intent_id?: string;
-  total: number | string;
+  total: number;
   subtotal: number;
   gst: number;
   pst: number;
   tax: number;
   delivery_fee: number;
-  discount?: number;
-  tip_amount?: number;
+  discount: number;
+  tip_amount: number;
   created_at: string;
   delivery_address: string;
   delivery_instructions?: string;
@@ -35,9 +36,11 @@ interface Order {
   };
   order_items: {
     id: string;
+    product_id: string;
     quantity: number;
     unit_price: number;
     total_price: number;
+    final_price: number | null;
     final_weight: number | null;
     bottle_price?: number;
     products: {
@@ -47,6 +50,7 @@ interface Order {
       scalable: boolean;
       tax_type: string;
       stock_quantity: number;
+      price: number;
       bottle_price?: number;
     };
   }[];
@@ -92,6 +96,7 @@ export default function AdminOrders() {
   const [_showAddProduct, setShowAddProduct] = useState<boolean>(false);
   const [productSearch, setProductSearch] = useState<string>('');
   const [_addingProduct, setAddingProduct] = useState<boolean>(false);
+  const [showEditModal, setShowEditModal] = useState<boolean>(false);
 
   const _handleImageError = (imageKey: string) => {
   setImageErrors(prev => {
@@ -130,12 +135,13 @@ export default function AdminOrders() {
           driver:users!orders_driver_id_fkey(first_name, last_name),
           order_items(
             id,
+            product_id,
             quantity,
             unit_price,
             total_price,
             final_weight,
             bottle_price,
-            products(id, name, unit, scalable, tax_type, stock_quantity, bottle_price)
+            products(id, name, unit, scalable, tax_type, stock_quantity, price, bottle_price)
           )
         `;
 
@@ -158,9 +164,11 @@ export default function AdminOrders() {
       const formattedOrders: Order[] = (data || []).map((order: any) => {
         const orderItems = (order.order_items || []).map((item: any) => ({
           id: item.id,
+          product_id: item.product_id,
           quantity: item.quantity,
           unit_price: item.unit_price,
           total_price: item.total_price,
+          final_price: item.total_price,
           final_weight: item.final_weight,
           bottle_price: item.bottle_price,
           products: Array.isArray(item.products) ? item.products[0] : item.products
@@ -169,6 +177,8 @@ export default function AdminOrders() {
         return {
           ...order,
           order_items: orderItems,
+          discount: order.discount ?? 0,
+          tip_amount: order.tip_amount ?? 0,
           customer: Array.isArray(order.customer) ? order.customer[0] : order.customer,
           driver: Array.isArray(order.driver) ? order.driver[0] : order.driver
         };
@@ -561,11 +571,13 @@ export default function AdminOrders() {
           .insert(insertData)
           .select(`
             id,
+            product_id,
             quantity,
             unit_price,
             total_price,
+            final_price,
             final_weight,
-            products(id, name, unit, scalable, tax_type, stock_quantity)
+            products(id, name, unit, scalable, tax_type, stock_quantity, price)
           `)
           .single();
 
@@ -575,9 +587,11 @@ export default function AdminOrders() {
 
         const insertedItem: Order['order_items'][0] = {
           id: insertedItemData.id,
+          product_id: insertedItemData.product_id,
           quantity: insertedItemData.quantity,
           unit_price: insertedItemData.unit_price,
           total_price: insertedItemData.total_price,
+          final_price: insertedItemData.final_price,
           final_weight: insertedItemData.final_weight,
           products: Array.isArray(insertedItemData.products)
             ? insertedItemData.products[0]
@@ -1559,12 +1573,73 @@ export default function AdminOrders() {
                     <div className="text-xs sm:text-sm text-gray-600">Delivery Address</div>
                     <div className="text-sm font-medium break-words">{selectedOrder.delivery_address}</div>
                   </div>
+                  {selectedOrder.delivery_instructions && (
+                      <div className="mt-4">
+                        <div className="text-sm text-gray-600">Delivery Instructions</div>
+                        <div className="font-medium break-words bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-900">
+                          {selectedOrder.delivery_instructions}
+                        </div>
+                      </div>
+                    )}
+                    
                 </div>
               </div>
+              {/* Order Items */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-gray-900">Order Items</h3>
+                    <button
+                      onClick={() => setShowEditModal(!showEditModal)}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                    >
+                      {showEditModal ? 'View' : 'Edit'}
+                    </button>
+                  </div>
+
+                  {showEditModal ? (
+                    <OrderEditModal
+                      order={selectedOrder}
+                      products={products}
+                      onClose={() => setShowEditModal(false)}
+                      onUpdate={() => {
+                        setShowEditModal(false);
+                        loadOrders();
+                        loadProducts();
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        {selectedOrder.order_items?.map((item) => (
+                          <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-200">
+                            <div>
+                              <div className="font-medium">{item.products?.name}</div>
+                              <div className="text-sm text-gray-600">
+                                {item.quantity} {item.products?.unit} × ${item.unit_price.toFixed(2)}
+                                {item.bottle_price && item.bottle_price > 0 && ` + $${item.bottle_price.toFixed(2)} bottle`}
+                              </div>
+                            </div>
+                            <div className="font-medium">
+                              ${item.total_price.toFixed(2)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex justify-between items-center text-lg font-bold">
+                          <span>Total</span>
+                          <span>${Number(selectedOrder.total).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
             </div>
           </div>
         </div>
       )}
     </div>
+
   );
 }

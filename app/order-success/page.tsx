@@ -9,12 +9,13 @@ interface OrderItem {
   id: string;
   quantity: number;
   unit_price: number;
-  bottle_price: number;
+  bottle_price?: number;
   total_price: number;
   product: {
     id: string;
     name: string;
     unit: string;
+    image_url?: string;
   };
 }
 
@@ -135,7 +136,7 @@ function OrderSuccessContent() {
               unit_price,
               bottle_price,
               total_price,
-              products(id, name, unit)
+              products(id, name, unit, image_url)
             )
           `)
           .eq('id', orderId)
@@ -157,10 +158,11 @@ const normalizedOrder: OrderDetails = {
     unit_price: Number(item.unit_price),
     bottle_price: Number(item.bottle_price ?? 0),
     total_price: Number(item.total_price),
-    product: item.products?.[0] ?? {
+    product: item.products ?? {
       id: '',
       name: 'Unknown product',
       unit: '',
+      image_url: undefined,
     },
   })),
 };
@@ -304,12 +306,27 @@ setOrderDetails(normalizedOrder);
         {orderDetails?.order_items && orderDetails.order_items.length > 0 && (
           <div className="bg-gray-50 rounded-xl p-6 mb-8">
             <h3 className="font-semibold text-gray-900 mb-4">Order Items</h3>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {orderDetails.order_items.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-lg">
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">{item.product.name}</div>
-                    <div className="text-sm text-gray-500">
+                <div key={item.id} className="flex items-start space-x-3 p-3 bg-white rounded-lg">
+                  {/* Product Image */}
+                  {item.product.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.product.image_url}
+                      alt={item.product.name}
+                      className="w-12 h-12 object-contain bg-gray-50 rounded-lg p-2 flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <i className="ri-image-line text-gray-400"></i>
+                    </div>
+                  )}
+
+                  {/* Product Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 text-sm">{item.product.name}</div>
+                    <div className="text-sm text-gray-500 mt-1">
                       {item.quantity} {item.product.unit} × ${item.unit_price.toFixed(2)}
                     </div>
                     {item.bottle_price && item.bottle_price > 0 && (
@@ -318,8 +335,10 @@ setOrderDetails(normalizedOrder);
                       </div>
                     )}
                   </div>
-                  <div className="text-right">
-                    <div className="font-medium text-gray-900">
+
+                  {/* Price */}
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-medium text-gray-900 text-sm">
                       ${(item.total_price + ((item.bottle_price || 0) * item.quantity)).toFixed(2)}
                     </div>
                   </div>

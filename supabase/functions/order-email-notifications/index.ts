@@ -551,7 +551,7 @@ function customerInvoice(order: any) {
           <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; border-radius: 6px; margin-bottom: 20px;">
             <p style="margin: 0; color: #166534; font-size: 14px;">
               <strong>Thank you for your order!</strong><br>
-              We appreciate your business. Your order has been confirmed and is being prepared for delivery.
+              We appreciate your business. Your order has been prepared for delivery.
             </p>
           </div>
         </div>
