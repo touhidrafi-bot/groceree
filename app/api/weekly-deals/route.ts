@@ -1,5 +1,9 @@
-import { supabase } from '../../../lib/auth';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+
+// Create server-side Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Simple in-memory cache
 const dealsCache = {
@@ -10,6 +14,15 @@ const dealsCache = {
 
 export async function GET(_request: NextRequest) {
   try {
+    // Validate Supabase credentials
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase credentials not configured');
+      return NextResponse.json(
+        { deals: [], error: 'Server not properly configured' },
+        { status: 500 }
+      );
+    }
+
     const now = Date.now();
 
     // Check if cache is still valid
@@ -18,6 +31,9 @@ export async function GET(_request: NextRequest) {
     }
 
     try {
+      // Create fresh client instance for this request
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
       const today = new Date().toISOString().split('T')[0];
 
       // Fetch all active deals that are currently valid

@@ -143,7 +143,8 @@ export default function OrderEditModal({ order, products, onClose: _onClose, onU
 
     const unitPrice = parseFloat(item.unit_price.toString());
     const bottlePrice = parseFloat((item.bottle_price || 0).toString());
-    const totalPrice = parseFloat((quantity * (unitPrice + bottlePrice)).toFixed(2));
+    // For non-scalable items: bottle price is a one-time fee, not per unit
+    const totalPrice = parseFloat(((quantity * unitPrice) + bottlePrice).toFixed(2));
 
     const updated = editingItems.map(i => {
       if (i.id === itemId) {
@@ -170,7 +171,8 @@ export default function OrderEditModal({ order, products, onClose: _onClose, onU
 
     const unitPrice = parseFloat(item.unit_price.toString());
     const bottlePrice = parseFloat((item.bottle_price || 0).toString());
-    const totalPrice = parseFloat((newWeight * (unitPrice + bottlePrice)).toFixed(2));
+    // For scalable items: bottle price is a one-time fee, not per unit weight
+    const totalPrice = parseFloat(((newWeight * unitPrice) + bottlePrice).toFixed(2));
 
     const updated = editingItems.map(i => {
       if (i.id === itemId) {
@@ -178,6 +180,7 @@ export default function OrderEditModal({ order, products, onClose: _onClose, onU
           ...i,
           final_weight: newWeight,
           final_price: totalPrice,
+          total_price: totalPrice,
           quantity: newWeight
         };
       }
@@ -216,7 +219,8 @@ export default function OrderEditModal({ order, products, onClose: _onClose, onU
       quantity = Math.max(1, Math.round(qty));
     }
 
-    const totalPrice = parseFloat((quantity * (product.price + (product.bottle_price || 0))).toFixed(2));
+    // For new items: bottle price is a one-time fee, not per unit
+    const totalPrice = parseFloat(((quantity * product.price) + (product.bottle_price || 0)).toFixed(2));
 
     const newItem: OrderItem = {
       id: `new_${Date.now()}`,
@@ -582,28 +586,90 @@ export default function OrderEditModal({ order, products, onClose: _onClose, onU
           {editHistory.length === 0 ? (
             <p className="text-sm text-gray-600 py-4 text-center">No edit history</p>
           ) : (
-            editHistory.map((entry) => (
-              <div key={entry.id} className="border border-gray-200 rounded-lg p-3">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <p className="font-medium text-sm text-gray-900">
-                      {entry.edit_type.replace(/_/g, ' ')}
-                    </p>
-                    <p className="text-xs text-gray-600 mt-1">
-                      By: {entry.edited_user?.first_name} {entry.edited_user?.last_name}
-                    </p>
+            editHistory.map((entry) => {
+              const formatEditType = (type: string) => {
+                const typeMap: Record<string, string> = {
+                  'UPDATE_ITEM': 'Updated Item',
+                  'ADD_ITEM': 'Added Item',
+                  'REMOVE_ITEM': 'Removed Item',
+                  'BATCH_UPDATE': 'Batch Update'
+                };
+                return typeMap[type] || type.replace(/_/g, ' ');
+              };
+
+              const formatChanges = (changes: Record<string, any>, editType: string) => {
+                if (!changes) return null;
+
+                if (editType === 'UPDATE_ITEM') {
+                  return (
+                    <div className="space-y-1 text-xs">
+                      <p><span className="font-medium">{changes.product_name}</span></p>
+                      {changes.old_quantity !== undefined && (
+                        <p>Quantity: <span className="text-red-600 line-through">{changes.old_quantity}</span> → <span className="text-green-600">{changes.new_quantity}</span></p>
+                      )}
+                      {changes.old_total_price !== undefined && (
+                        <p>Total: <span className="text-red-600 line-through">${changes.old_total_price.toFixed(2)}</span> → <span className="text-green-600">${changes.new_total_price.toFixed(2)}</span></p>
+                      )}
+                      {changes.old_final_weight !== undefined && (
+                        <p>Weight: <span className="text-red-600 line-through">{changes.old_final_weight}</span> → <span className="text-green-600">{changes.new_final_weight}</span></p>
+                      )}
+                    </div>
+                  );
+                } else if (editType === 'ADD_ITEM') {
+                  return (
+                    <div className="space-y-1 text-xs">
+                      <p><span className="font-medium">{changes.product_name}</span> added</p>
+                      <p>Quantity: <span className="text-green-600">{changes.quantity}</span></p>
+                      <p>Total: <span className="text-green-600">${changes.total_price.toFixed(2)}</span></p>
+                    </div>
+                  );
+                } else if (editType === 'REMOVE_ITEM') {
+                  return (
+                    <div className="space-y-1 text-xs">
+                      <p><span className="font-medium">{changes.product_name}</span> removed</p>
+                      <p>Quantity: <span className="text-red-600">{changes.quantity}</span></p>
+                      <p>Total: <span className="text-red-600">${changes.total_price.toFixed(2)}</span></p>
+                    </div>
+                  );
+                } else if (editType === 'BATCH_UPDATE') {
+                  return (
+                    <div className="space-y-2 text-xs">
+                      <p className="font-medium">{changes.items_count} items updated</p>
+                      <div className="space-y-1">
+                        {changes.items?.map((item: any, idx: number) => (
+                          <p key={idx}>
+                            <span className="font-medium">{item.product_name}</span>: {item.quantity} units → ${item.total_price.toFixed(2)}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return <pre className="whitespace-pre-wrap break-words">{JSON.stringify(changes, null, 2)}</pre>;
+              };
+
+              return (
+                <div key={entry.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm text-gray-900">
+                        {formatEditType(entry.edit_type)}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        By: {entry.edited_user?.first_name} {entry.edited_user?.last_name}
+                      </p>
+                    </div>
+                    <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
+                      {new Date(entry.created_at).toLocaleString()}
+                    </span>
                   </div>
-                  <span className="text-xs text-gray-500">
-                    {new Date(entry.created_at).toLocaleString()}
-                  </span>
+                  <div className="text-xs text-gray-700 bg-gray-50 p-2 rounded mt-2">
+                    {formatChanges(entry.changes, entry.edit_type)}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-700 bg-gray-50 p-2 rounded">
-                  <pre className="whitespace-pre-wrap break-words">
-                    {JSON.stringify(entry.changes, null, 2)}
-                  </pre>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

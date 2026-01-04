@@ -27,9 +27,13 @@ export default function SpecialOffersSection() {
     const fetchDeals = async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        const timeoutId = setTimeout(() => {
+          console.warn('Weekly deals request timing out after 30 seconds');
+          controller.abort();
+        }, 30000); // 30 second timeout
 
         try {
+          console.log('Fetching weekly deals from /api/weekly-deals...');
           const response = await fetch('/api/weekly-deals', {
             method: 'GET',
             headers: {
@@ -39,6 +43,8 @@ export default function SpecialOffersSection() {
           });
 
           clearTimeout(timeoutId);
+
+          console.log(`API response status: ${response.status} ${response.statusText}`);
 
           if (!response.ok) {
             console.error(`HTTP ${response.status}: ${response.statusText}`);
@@ -55,13 +61,17 @@ export default function SpecialOffersSection() {
           }
 
           const data = await response.json();
+          console.log('Successfully fetched weekly deals:', data);
 
           if (data.error) {
             console.error('API returned error:', data.error);
           }
 
           if (data.deals && data.deals.length > 0) {
+            console.log(`Loaded ${data.deals.length} weekly deals`);
             setOffers(data.deals);
+          } else {
+            console.info('No weekly deals available');
           }
         } catch (fetchError) {
           clearTimeout(timeoutId);
@@ -71,6 +81,7 @@ export default function SpecialOffersSection() {
           } else {
             const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
             console.error('Error fetching weekly deals:', errorMessage);
+            console.error('Error type:', fetchError instanceof Error ? fetchError.constructor.name : typeof fetchError);
           }
           // Show empty state gracefully
         } finally {

@@ -88,14 +88,16 @@ export async function POST(req: NextRequest) {
         newFinalWeight = newQuantity;
         const unitPrice = parseFloat(item.unit_price.toString());
         const bottlePrice = parseFloat((item.bottle_price || 0).toString());
-        newItemTotal = parseFloat((newQuantity * (unitPrice + bottlePrice)).toFixed(2));
+        // Bottle price is a one-time fee, not per unit weight
+        newItemTotal = parseFloat(((newQuantity * unitPrice) + bottlePrice).toFixed(2));
         newFinalPrice = newItemTotal;
       } else {
         // Non-scalable items: validate integer quantity
         newQuantity = Math.max(1, Math.round(newQuantity));
         const unitPrice = parseFloat(item.unit_price.toString());
         const bottlePrice = parseFloat((item.bottle_price || 0).toString());
-        newItemTotal = parseFloat((newQuantity * (unitPrice + bottlePrice)).toFixed(2));
+        // Bottle price is a one-time fee, not per unit
+        newItemTotal = parseFloat(((newQuantity * unitPrice) + bottlePrice).toFixed(2));
       }
 
       changes = {
@@ -153,7 +155,8 @@ export async function POST(req: NextRequest) {
         newQuantity = Math.max(1, Math.round(newQuantity));
       }
 
-      newItemTotal = parseFloat((newQuantity * (product.price + (product.bottle_price || 0))).toFixed(2));
+      // Bottle price is a one-time fee, not per unit
+      newItemTotal = parseFloat(((newQuantity * product.price) + (product.bottle_price || 0)).toFixed(2));
 
       const newItem = {
         id: `new_${Date.now()}`,

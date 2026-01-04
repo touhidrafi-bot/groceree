@@ -97,6 +97,7 @@ export default function AdminOrders() {
   const [productSearch, setProductSearch] = useState<string>('');
   const [_addingProduct, setAddingProduct] = useState<boolean>(false);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
+  const [editingDriverOrderId, setEditingDriverOrderId] = useState<string | null>(null);
 
   const _handleImageError = (imageKey: string) => {
   setImageErrors(prev => {
@@ -111,7 +112,7 @@ export default function AdminOrders() {
     loadProducts();
   }, []);
 
-  const loadOrders = async () => {
+  const loadOrders = async (): Promise<Order[] | null> => {
     const baseSelect = `
           id,
           order_number,
@@ -158,7 +159,7 @@ export default function AdminOrders() {
         const hint = (error as any)?.hint || null;
         console.error('Supabase error loading admin orders:', { message, code, details, hint });
         setOrders([]);
-        return;
+        return null;
       }
 
       const formattedOrders: Order[] = (data || []).map((order: any) => {
@@ -185,11 +186,13 @@ export default function AdminOrders() {
       });
 
       setOrders(formattedOrders);
+      return formattedOrders;
     } catch (err) {
       const message = (err as any)?.message || String(err);
       const details = (err as any)?.details || null;
       console.error('Unexpected error loading admin orders:', { message, details });
       setOrders([]);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -396,10 +399,12 @@ export default function AdminOrders() {
 
       if (orderItem.products.scalable) {
         finalQuantity = Math.max(0.01, parseFloat(newQuantity.toFixed(2)));
-        newTotalPrice = finalQuantity * (orderItem.unit_price + (orderItem.bottle_price || 0));
+        // For scalable items: bottle price is a one-time fee, not per unit weight
+        newTotalPrice = (finalQuantity * orderItem.unit_price) + (orderItem.bottle_price || 0);
       } else {
         finalQuantity = Math.max(1, Math.round(newQuantity));
-        newTotalPrice = finalQuantity * (orderItem.unit_price + (orderItem.bottle_price || 0));
+        // For non-scalable items: bottle price is a one-time fee, not per unit
+        newTotalPrice = (finalQuantity * orderItem.unit_price) + (orderItem.bottle_price || 0);
       }
 
       const updateData: any = {
@@ -554,7 +559,8 @@ export default function AdminOrders() {
           finalQuantity = Math.max(1, Math.round(quantity));
         }
 
-        const totalPrice = finalQuantity * (product.price + (product.bottle_price || 0));
+        // Bottle price is a one-time fee, not per unit
+        const totalPrice = (finalQuantity * product.price) + (product.bottle_price || 0);
 
         const insertData = {
           order_id: orderId,
@@ -1256,18 +1262,63 @@ export default function AdminOrders() {
                     
                     <div>
                       <div className="text-xs text-gray-600">Driver</div>
-                      <select
-                        value={order.driver?.id || ''}
-                        onChange={(e) => assignDriver(order.id, e.target.value)}
-                        className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full mt-1"
-                      >
-                        <option value="">Assign Driver</option>
-                        {drivers.map(driver => (
-                          <option key={driver.id} value={driver.id}>
-                            {driver.first_name} {driver.last_name}
-                          </option>
-                        ))}
-                      </select>
+                      {editingDriverOrderId === order.id ? (
+                        <div className="mt-1 flex gap-2">
+                          <select
+                            autoFocus
+                            defaultValue={order.driver?.id || ''}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                assignDriver(order.id, e.target.value);
+                                setEditingDriverOrderId(null);
+                              }
+                            }}
+                            className="text-xs border border-gray-300 rounded px-2 py-1.5 flex-1"
+                          >
+                            <option value="">Assign Driver</option>
+                            {drivers.map(driver => (
+                              <option key={driver.id} value={driver.id}>
+                                {driver.first_name} {driver.last_name}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => setEditingDriverOrderId(null)}
+                            className="text-xs px-2 py-1.5 border border-gray-300 rounded hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : order.driver ? (
+                        <div className="mt-1 flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-900">
+                            {order.driver.first_name} {order.driver.last_name}
+                          </span>
+                          <button
+                            onClick={() => setEditingDriverOrderId(order.id)}
+                            className="text-xs text-blue-600 hover:text-blue-900 underline"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      ) : (
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              assignDriver(order.id, e.target.value);
+                            }
+                          }}
+                          className="text-xs border border-gray-300 rounded px-2 py-1.5 w-full mt-1"
+                        >
+                          <option value="">Assign Driver</option>
+                          {drivers.map(driver => (
+                            <option key={driver.id} value={driver.id}>
+                              {driver.first_name} {driver.last_name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   </div>
                   
@@ -1396,18 +1447,63 @@ export default function AdminOrders() {
                     </select>
                   </td>
                   <td className="px-6 py-4">
-                    <select
-                      value={order.driver?.id || ''}
-                      onChange={(e) => assignDriver(order.id, e.target.value)}
-                      className="text-xs border border-gray-300 rounded px-2 py-1 pr-6"
-                    >
-                      <option value="">Assign Driver</option>
-                      {drivers.map(driver => (
-                        <option key={driver.id} value={driver.id}>
-                          {driver.first_name} {driver.last_name}
-                        </option>
-                      ))}
-                    </select>
+                    {editingDriverOrderId === order.id ? (
+                      <div className="flex gap-2">
+                        <select
+                          autoFocus
+                          defaultValue={order.driver?.id || ''}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              assignDriver(order.id, e.target.value);
+                              setEditingDriverOrderId(null);
+                            }
+                          }}
+                          className="text-xs border border-gray-300 rounded px-2 py-1 pr-6 flex-1"
+                        >
+                          <option value="">Assign Driver</option>
+                          {drivers.map(driver => (
+                            <option key={driver.id} value={driver.id}>
+                              {driver.first_name} {driver.last_name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => setEditingDriverOrderId(null)}
+                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-50 whitespace-nowrap"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : order.driver ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {order.driver.first_name} {order.driver.last_name}
+                        </span>
+                        <button
+                          onClick={() => setEditingDriverOrderId(order.id)}
+                          className="text-xs text-blue-600 hover:text-blue-900 underline"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    ) : (
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            assignDriver(order.id, e.target.value);
+                          }
+                        }}
+                        className="text-xs border border-gray-300 rounded px-2 py-1 pr-6"
+                      >
+                        <option value="">Assign Driver</option>
+                        {drivers.map(driver => (
+                          <option key={driver.id} value={driver.id}>
+                            {driver.first_name} {driver.last_name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">
                     ${(Number(order.subtotal || 0) + Number(order.tax || 0) + Number(order.delivery_fee || 0) + Number(order.tip_amount || 0) - Number(order.discount || 0)).toFixed(2)}
@@ -1601,9 +1697,18 @@ export default function AdminOrders() {
                       order={selectedOrder}
                       products={products}
                       onClose={() => setShowEditModal(false)}
-                      onUpdate={() => {
+                      onUpdate={async () => {
+                        // First, fetch and update the order data
+                        const loadedOrders = await loadOrders();
+                        if (loadedOrders && selectedOrder) {
+                          const updatedOrder = loadedOrders.find(o => o.id === selectedOrder.id);
+                          if (updatedOrder) {
+                            setSelectedOrder(updatedOrder);
+                          }
+                        }
+                        // Then close the modal after data is updated
                         setShowEditModal(false);
-                        loadOrders();
+                        // Load products in the background
                         loadProducts();
                       }}
                     />
