@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Suspense } from 'react';
+export const dynamic = 'force-dynamic';
+
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { useAuth } from '../../components/AuthProvider';
 import { supabase } from '../../lib/auth';
 
@@ -21,6 +21,8 @@ interface Order {
   discount: number | null;
   created_at: string | null;
   delivery_address: string;
+  stripe_payment_intent_id?: string;
+  payment_status?: string | null;
   order_items: {
     id: string;
     quantity: number;
@@ -59,8 +61,21 @@ interface ImageErrorState {
 }
 
 function OrderStatusContent() {
-  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [total, setTotal] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      setOrderId(params.get('orderId'));
+      setOrderNumber(params.get('orderNumber'));
+      setTotal(params.get('total'));
+    } catch {
+      // ignore
+    }
+  }, []);
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -72,25 +87,59 @@ function OrderStatusContent() {
   const [savingChanges, setSavingChanges] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [imageErrors, setImageErrors] = useState<ImageErrorState>({});
+  const isMountedRef = useRef(true);
 
   const handleImageError = (imageKey: string) => {
     setImageErrors(prev => ({ ...prev, [imageKey]: true }));
   };
   
-  const orderId = searchParams.get('orderId');
-  const orderNumber = searchParams.get('orderNumber');
-  const total = searchParams.get('total');
+  // orderId, orderNumber, total are derived from URL query params via state
   const isNewOrder = orderId && orderNumber && total;
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     if (user) {
       loadOrders();
+    } else {
+      // If no user, don't show loading for orders
+      setOrdersLoading(false);
     }
+
+    // Handle page visibility changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isMountedRef.current && user) {
+        console.log('📱 Orders page became visible, refetching...');
+        loadOrders();
+      }
+    };
+
+    // Handle window focus
+    const handleFocus = () => {
+      if (isMountedRef.current && user) {
+        console.log('🔄 Orders page focused, refetching...');
+        loadOrders();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      isMountedRef.current = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [user]);
 
   const loadOrders = async () => {
+    if (!isMountedRef.current) return;
+
     try {
       if (!user) return;
+
+      setOrdersLoading(true);
+      setLoadError(null);
 
       const { data, error } = await supabase
         .from('orders')
@@ -109,8 +158,10 @@ function OrderStatusContent() {
         .eq('customer_id', user.id)
         .order('created_at', { ascending: false });
 
+      if (!isMountedRef.current) return;
+
       if (error) {
-        const msg = error?.message || JSON.stringify(error);
+        const _msg = error?.message || JSON.stringify(error);
         console.error('Supabase error loading orders:', {
           message: error?.message,
           code: (error as any)?.code,
@@ -118,45 +169,57 @@ function OrderStatusContent() {
           hint: (error as any)?.hint,
           status: (error as any)?.status
         });
-        setLoadError(msg);
-        setOrders(data || []);
-        setOrdersLoading(false);
-        return;
+        if (isMountedRef.current) {
+          setLoadError('Unable to load your orders at this time. Our team is working to restore service. Please try again later.');
+          setOrders(data || []);
+        }
+      } else {
+        if (isMountedRef.current) {
+          setOrders(data || []);
+          setLoadError(null);
+        }
       }
-
-      setOrders(data || []);
     } catch (err: any) {
-      const details = err?.message || JSON.stringify(err);
+      const _details = err?.message || JSON.stringify(err);
       console.error('Unexpected error loading orders:', err);
-      setLoadError(details);
+      if (isMountedRef.current) {
+        setLoadError('Unable to load your orders at this time. Our team is working to restore service. Please try again later.');
+      }
     } finally {
-      setOrdersLoading(false);
+      if (isMountedRef.current) {
+        setOrdersLoading(false);
+      }
     }
   };
 
   const loadAvailableProducts = async () => {
+    if (!isMountedRef.current) return;
     setLoadingProducts(true);
     try {
       const { data, error } = await supabase.functions.invoke('get-products', {
-        body: { 
+        body: {
           category: '',
           search: '',
           limit: 50
         }
       });
 
+      if (!isMountedRef.current) return;
+
       if (error) throw error;
       setAvailableProducts(data.products || []);
     } catch (error) {
       console.error('Error loading products:', error);
     } finally {
-      setLoadingProducts(false);
+      if (isMountedRef.current) {
+        setLoadingProducts(false);
+      }
     }
   };
 
   // Remove the old useEffect for search and replace with this simpler approach
   useEffect(() => {
-    if (editingOrder) {
+    if (editingOrder && isMountedRef.current) {
       loadAvailableProducts();
     }
   }, [editingOrder]);
@@ -178,7 +241,9 @@ function OrderStatusContent() {
   });
 
   const canEditOrder = (order: Order) => {
-    return order.status === 'pending' || order.status === 'confirmed';
+    const isEditableStatus = order.status === 'pending' || order.status === 'confirmed';
+    const isPaymentEditable = !order.payment_status || order.payment_status === 'pending' || order.payment_status === 'authorized';
+    return isEditableStatus && isPaymentEditable;
   };
 
   const startEditingOrder = async (order: Order) => {
@@ -373,6 +438,34 @@ function OrderStatusContent() {
       if (updateError) {
         console.error('Error updating order:', updateError);
         throw updateError;
+      }
+
+      // Update Stripe payment intent if order total changed
+      const originalOrder = orders.find(o => o.id === editingOrder.id);
+      const oldTotal = originalOrder?.total || 0;
+      const newTotal = editingOrder.total || 0;
+
+      if (oldTotal !== newTotal && originalOrder?.stripe_payment_intent_id) {
+        try {
+          console.log(`Updating Stripe payment intent ${originalOrder.stripe_payment_intent_id} from ${oldTotal} to ${newTotal}`);
+          const { data: _data, error } = await supabase.functions.invoke('stripe-payment-intent', {
+            body: {
+              action: 'update_intent',
+              paymentIntentId: originalOrder.stripe_payment_intent_id,
+              amount: newTotal
+            }
+          });
+
+          if (error) {
+            console.error('Failed to update Stripe payment intent:', error);
+            // Don't fail the entire request if Stripe update fails
+          } else {
+            console.log('Successfully updated Stripe payment intent for customer edit');
+          }
+        } catch (stripeErr) {
+          console.error('Error updating Stripe payment intent:', stripeErr);
+          // Don't fail the entire request if Stripe update fails
+        }
       }
 
       // Log the edit in order history
@@ -1088,16 +1181,5 @@ function OrderStatusContent() {
 }
 
 export default function OrdersPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading orders...</p>
-        </div>
-      </div>
-    }>
-      <OrderStatusContent />
-    </Suspense>
-  );
+  return <OrderStatusContent />;
 }

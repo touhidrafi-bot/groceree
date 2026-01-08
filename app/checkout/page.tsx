@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+export const dynamic = 'force-dynamic';
+
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '../../components/EnhancedCartProvider';
@@ -12,6 +14,7 @@ import CartNotification from '../../components/CartNotification';
 import DeliveryScheduler from '../../components/DeliveryScheduler';
 import AuthModal from '../../components/AuthModal';
 import StripeCheckout from './StripeCheckout';
+import { checkoutStore } from '../../lib/checkout-store';
 
 interface CheckoutForm {
   email: string;
@@ -77,6 +80,9 @@ function getCheckoutDeliveryDateLabel(dateStr: string): string {
 }
 
 export default function CheckoutPage() {
+  // Load persisted checkout state
+  const persistedState = checkoutStore.loadState();
+
   const router = useRouter();
   const { user, loading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -84,7 +90,7 @@ export default function CheckoutPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showStripeCheckout, setShowStripeCheckout] = useState(false);
   const [createdOrderId, _setCreatedOrderId] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'interac' | 'card'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'interac' | 'card'>(persistedState.paymentMethod);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
 
   const {
@@ -104,29 +110,63 @@ export default function CheckoutPage() {
 
   const { notification, showNotification, hideNotification } = useCartNotification();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentStep, setCurrentStep] = useState(1);
-  const [selectedDeliverySlot, setSelectedDeliverySlot] = useState<DeliverySlot | null>(null);
-  const [tipAmount, setTipAmount] = useState(0);
-  const [customTipAmount, setCustomTipAmount] = useState('');
+  const isMountedRef = useRef(true);
+
+  const [currentStep, setCurrentStep] = useState(persistedState.currentStep);
+  const [selectedDeliverySlot, setSelectedDeliverySlot] = useState<DeliverySlot | null>(persistedState.selectedDeliverySlot);
+  const [tipAmount, setTipAmount] = useState(persistedState.tipAmount);
+  const [customTipAmount, setCustomTipAmount] = useState(persistedState.customTipAmount);
 
   const [form, setForm] = useState<CheckoutForm>({
-    email: '',
-    firstName: '',
-    lastName: '',
-    phone: '',
-    address: '',
-    apartment: '',
-    city: 'Vancouver',
-    province: 'BC',
-    postalCode: deliveryInfo?.postalCode || '',
-    deliveryInstructions: '',
-    saveInfo: false,
+    ...persistedState.form,
+    postalCode: persistedState.form.postalCode || deliveryInfo?.postalCode || '',
   });
+
+  // Persist current step whenever it changes
+  useEffect(() => {
+    if (isMountedRef.current) {
+      checkoutStore.setCurrentStep(currentStep);
+    }
+  }, [currentStep]);
+
+  // Persist form data whenever it changes
+  useEffect(() => {
+    if (isMountedRef.current) {
+      checkoutStore.updateForm(form);
+    }
+  }, [form]);
+
+  // Persist delivery slot whenever it changes
+  useEffect(() => {
+    if (isMountedRef.current) {
+      checkoutStore.setDeliverySlot(selectedDeliverySlot);
+    }
+  }, [selectedDeliverySlot]);
+
+  // Persist tip amount whenever it changes
+  useEffect(() => {
+    if (isMountedRef.current) {
+      checkoutStore.setTipAmount(tipAmount, customTipAmount);
+    }
+  }, [tipAmount, customTipAmount]);
+
+  // Persist payment method whenever it changes
+  useEffect(() => {
+    if (isMountedRef.current) {
+      checkoutStore.setPaymentMethod(paymentMethod);
+    }
+  }, [paymentMethod]);
 
   // Fetch payment settings
   useEffect(() => {
+    isMountedRef.current = true;
+
     const loadPaymentSettings = async () => {
+      if (!isMountedRef.current) return;
+
       const settings = await fetchPaymentSettings();
+      if (!isMountedRef.current) return;
+
       setPaymentSettings(settings);
 
       // Set default payment method based on availability
@@ -137,6 +177,10 @@ export default function CheckoutPage() {
       }
     };
     loadPaymentSettings();
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 const paymentsDisabled =
   !!paymentSettings &&
@@ -309,6 +353,9 @@ const paymentsDisabled =
             throw new Error(stripeResult.error || 'Failed to create payment session');
           }
 
+          // Clear checkout state before redirect
+          checkoutStore.clearState();
+
           // Redirect user to Stripe Checkout page
           window.location.href = stripeResult.checkout_url;
           return;
@@ -322,6 +369,10 @@ const paymentsDisabled =
         // Interac flow – show success message
         const successMessage = 'Order placed successfully! You will receive payment instructions shortly.';
         showNotification(successMessage, 'success');
+
+        // Clear checkout state before redirect
+        checkoutStore.clearState();
+
         setTimeout(() => {
           router.push(
             `/order-success?orderId=${result.orderId}&orderNumber=${result.orderNumber}&total=${result.total}&paymentMethod=${paymentMethod}`,

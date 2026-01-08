@@ -337,20 +337,20 @@ export default function AdminDashboard() {
             <div>
               <Suspense fallback={
                 <div className="bg-white rounded-lg p-6 border border-gray-100 shadow">
-                  Loading...
+                  <div className="flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin mr-3"></div>
+                    Loading {tabs.find((t) => t.id === activeTab)?.name}...
+                  </div>
                 </div>
               }>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={activeTab}
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    transition={{ duration: 0.18 }}
-                  >
-                    {renderContent()}
-                  </motion.div>
-                </AnimatePresence>
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  {renderContent()}
+                </motion.div>
               </Suspense>
             </div>
           </main>

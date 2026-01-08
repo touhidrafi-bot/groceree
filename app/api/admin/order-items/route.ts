@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     // Fetch current order for comparison
     const { data: currentOrder, error: orderError } = await supabase
       .from('orders')
-      .select('id, order_number, total, subtotal, gst, pst, tax, delivery_fee, tip_amount, discount, order_items(id, product_id, quantity, unit_price, total_price, final_weight, final_price, bottle_price, products(id, name, scalable, tax_type, price, bottle_price))')
+      .select('id, order_number, total, subtotal, gst, pst, tax, delivery_fee, tip_amount, discount, stripe_payment_intent_id, order_items(id, product_id, quantity, unit_price, total_price, final_weight, final_price, bottle_price, products(id, name, scalable, tax_type, price, bottle_price))')
       .eq('id', orderId)
       .single();
 
@@ -417,6 +417,37 @@ export async function POST(req: NextRequest) {
 
     if (updateError) {
       return NextResponse.json({ error: `Failed to update order: ${updateError.message}` }, { status: 400 });
+    }
+
+    // Update Stripe payment intent if order total changed and payment intent exists
+    if (oldTotal !== newTotal && currentOrder.stripe_payment_intent_id) {
+      try {
+        console.log(`Updating Stripe payment intent ${currentOrder.stripe_payment_intent_id} from ${oldTotal} to ${newTotal}`);
+        const stripeResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/stripe-payment-intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authHeader}`
+          },
+          body: JSON.stringify({
+            action: 'update_intent',
+            paymentIntentId: currentOrder.stripe_payment_intent_id,
+            amount: newTotal
+          })
+        });
+
+        if (!stripeResponse.ok) {
+          const stripeError = await stripeResponse.json();
+          console.error('Failed to update Stripe payment intent:', stripeError);
+          // Don't fail the entire request if Stripe update fails
+        } else {
+          const stripeResult = await stripeResponse.json();
+          console.log('Successfully updated Stripe payment intent:', stripeResult);
+        }
+      } catch (stripeErr) {
+        console.error('Error updating Stripe payment intent:', stripeErr);
+        // Don't fail the entire request if Stripe update fails
+      }
     }
 
     // Log to order_edit_history

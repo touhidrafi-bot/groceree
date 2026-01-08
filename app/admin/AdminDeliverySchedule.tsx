@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/auth';
+import { useAuth } from '../../components/AuthProvider';
 
 interface DeliverySettings {
   id: string;
@@ -41,25 +42,45 @@ interface ScheduledDelivery {
 }
 
 export default function AdminDeliverySchedule() {
+  const { user, loading: authLoading } = useAuth();
   const [settings, setSettings] = useState<DeliverySettings | null>(null);
   const [windows, setWindows] = useState<DeliveryWindow[]>([]);
   const [deliveries, setDeliveries] = useState<ScheduledDelivery[]>([]);
   const [loading, setLoading] = useState(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [activeTab, setActiveTab] = useState('settings');
   const [editingWindow, setEditingWindow] = useState<DeliveryWindow | null>(null);
   const [showWindowModal, setShowWindowModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
 
   useEffect(() => {
-    loadData();
-    setSelectedDate(new Date().toISOString().split('T')[0]);
-  }, []);
+    // Abort any previous requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    if (!authLoading && user && user.role === 'admin') {
+      loadData();
+      setSelectedDate(new Date().toISOString().split('T')[0]);
+    }
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [authLoading, user]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       await Promise.all([loadSettings(), loadWindows(), loadScheduledDeliveries()]);
     } catch (error: any) {
+      if (error.name === 'AbortError') {
+        // Request was aborted, ignore
+        return;
+      }
       console.error('Error loading data:', {
         message: error?.message || 'Unknown error',
         code: error?.code || 'UNKNOWN'
@@ -70,7 +91,11 @@ export default function AdminDeliverySchedule() {
   };
 
   const loadSettings = async () => {
-    const { data, error } = await supabase.from('delivery_settings').select('*').single();
+    const query = supabase.from('delivery_settings').select('*');
+    if (abortControllerRef.current?.signal) {
+      query.abortSignal(abortControllerRef.current.signal);
+    }
+    const { data, error } = await query.single();
 
     if (error && error.code !== 'PGRST116') {
       console.error('Error loading settings:', error);
@@ -83,10 +108,14 @@ export default function AdminDeliverySchedule() {
   };
 
   const loadWindows = async () => {
-    const { data, error } = await supabase
+    const query = supabase
       .from('delivery_windows')
       .select('*')
-      .order('start_time', { ascending: true }); // Changed from sort_order to start_time
+      .order('start_time', { ascending: true });
+    if (abortControllerRef.current?.signal) {
+      query.abortSignal(abortControllerRef.current.signal);
+    }
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error loading windows:', error);
@@ -97,7 +126,7 @@ export default function AdminDeliverySchedule() {
   };
 
   const loadScheduledDeliveries = async () => {
-    const { data, error } = await supabase
+    const query = supabase
       .from('orders')
       .select(`
         id,
@@ -113,6 +142,10 @@ export default function AdminDeliverySchedule() {
       .not('delivery_date', 'is', null)
       .order('delivery_date', { ascending: true })
       .order('delivery_time_slot', { ascending: true });
+    if (abortControllerRef.current?.signal) {
+      query.abortSignal(abortControllerRef.current.signal);
+    }
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error loading scheduled deliveries:', error);
@@ -283,6 +316,42 @@ export default function AdminDeliverySchedule() {
     return deliveries.filter(d => d.delivery_date === date && d.delivery_time_slot === timeSlot && d.status !== 'cancelled')
       .length;
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i className="ri-user-line text-4xl text-gray-400"></i>
+          </div>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Access Denied</h2>
+          <p className="text-gray-600">You need admin privileges to access this page</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i className="ri-user-line text-4xl text-gray-400"></i>
+          </div>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">Access Denied</h2>
+          <p className="text-gray-600">You need admin privileges to access this page</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

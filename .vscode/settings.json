@@ -2,6 +2,11 @@
   "[typescript]": {
     "editor.defaultFormatter": "denoland.vscode-deno"
   },
+  "builder.autoDetectDevServer": false,
+  "builder.command": "npm run dev",
+  "builder.launchType": "browser",
+  "builder.runDevServer": true,
+  "builder.serverUrl": "http://localhost:3001",
   "deno.enablePaths": [
     "supabase/functions"
   ],
@@ -20,10 +25,5 @@
     "fs",
     "http",
     "net"
-  ],
-  "builder.serverUrl": "http://localhost:3001",
-  "builder.command": "npm run dev",
-  "builder.runDevServer": true,
-  "builder.autoDetectDevServer": false,
-  "builder.launchType": "browser"
+  ]
 }

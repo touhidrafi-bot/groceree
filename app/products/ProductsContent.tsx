@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ProductGrid from './ProductGrid';
 import ProductQuickView from './ProductQuickView';
@@ -48,6 +48,8 @@ function ProductsContentInner() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [cartNotification, setCartNotification] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
 
   const categories = ['All', 'Produce', 'Grocery (Non-Taxable)', 'Dairy, Dairy Alternatives & Eggs', 'Bakery', 'Grocery (Taxable GST)', 'Health & Beauty'];
   const allTags = ['organic', 'vegan', 'gluten free', 'protein', 'heart healthy', 'vitamin enriched', 'dairy free', 'non-gmo', 'locally sourced', 'fair trade', 'mediterranean', 'free range'];
@@ -82,12 +84,17 @@ function ProductsContentInner() {
   }, []);
 
  // Fetch products from Supabase (PUBLIC, anon only)
-const fetchProducts = async () => {
-  setLoading(true);
+const fetchProducts = async (showError = true) => {
+  if (!isMountedRef.current) return;
+
+  if (showError) {
+    setLoading(true);
+    setError(null);
+  }
 
   try {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      throw new Error('Supabase env vars missing');
+      throw new Error('Supabase is not configured');
     }
 
     const response = await fetch(
@@ -102,26 +109,69 @@ const fetchProducts = async () => {
       }
     );
 
+    if (!isMountedRef.current) return;
+
     const result = await response.json();
 
     if (!response.ok) {
       console.error('get-products failed:', response.status, result);
-      throw new Error(result?.error || `HTTP ${response.status}`);
+      throw new Error(result?.error || `Failed to load products (HTTP ${response.status})`);
     }
 
     const productsData = Array.isArray(result.products) ? result.products : [];
-    setProducts(productsData);
+
+    if (isMountedRef.current) {
+      setProducts(productsData);
+      setError(null);
+    }
   } catch (error) {
     console.error('Error fetching products:', error);
-    setProducts([]);
+    if (isMountedRef.current) {
+      const errorMessage = 'Products are temporarily unavailable. Our team is working to restore service. Please check back later.';
+      setError(errorMessage);
+      setProducts([]);
+    }
   } finally {
-    setLoading(false);
+    if (isMountedRef.current && showError) {
+      setLoading(false);
+    }
   }
 };
 
-  // Fetch products only once on mount - removed auto-refresh
+  // Fetch products on mount and when page becomes visible
   useEffect(() => {
+    // Set up mounted flag cleanup
+    isMountedRef.current = true;
+
+    // Initial fetch
     fetchProducts();
+
+    // Handle page visibility changes (tab switching, minimizing, etc.)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isMountedRef.current) {
+        // Page became visible - refetch to ensure fresh data
+        console.log('📱 Page became visible, refetching products...');
+        fetchProducts(false); // Don't show loading state for background refetch
+      }
+    };
+
+    // Handle window focus (browser tab regained focus)
+    const handleFocus = () => {
+      if (isMountedRef.current) {
+        console.log('🔄 Window focused, refetching products...');
+        fetchProducts(false); // Silent refetch
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    // Cleanup function
+    return () => {
+      isMountedRef.current = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // Filter and sort products
@@ -246,6 +296,26 @@ const fetchProducts = async () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading fresh products...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-sm max-w-md">
+          <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-red-100 rounded-full">
+            <i className="ri-error-warning-line text-2xl text-red-600"></i>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to load products</h3>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button
+            onClick={() => fetchProducts()}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );

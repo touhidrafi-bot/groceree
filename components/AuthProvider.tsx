@@ -1,14 +1,15 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { authService, AuthState, User } from '../lib/auth';
 
 interface AuthContextType extends AuthState {
-  signUp: (userData: any) => Promise<{ success: boolean; message: string }>;
-  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; message: string }>;
-  signOut: () => Promise<{ success: boolean; message: string }>;
-  updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; message: string }>;
-  resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
+  isRehydrated: boolean;
+  signUp: any;
+  signIn: any;
+  signOut: any;
+  updateProfile: any;
+  resetPassword: any;
   hasRole: (role: string) => boolean;
   hasAnyRole: (roles: string[]) => boolean;
 }
@@ -22,13 +23,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     error: null
   });
 
+  const [isRehydrated, setIsRehydrated] = useState(false);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
-    const unsubscribe = authService.subscribe(setAuthState);
-    return unsubscribe;
-  }, []);
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        unsubscribeRef.current = authService.subscribe((newState) => {
+          if (!mounted) return;
+
+          // Update auth state
+          setAuthState(newState);
+
+          // Mark rehydration ONLY after first real state arrives
+          if (!isRehydrated) {
+            setIsRehydrated(true);
+          }
+        });
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) {
+          setIsRehydrated(true);
+          setAuthState((prev) => ({ ...prev, loading: false }));
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+      if (unsubscribeRef.current) unsubscribeRef.current();
+    };
+  }, [isRehydrated]);
 
   const value: AuthContextType = {
     ...authState,
+    isRehydrated,
     signUp: authService.signUp.bind(authService),
     signIn: authService.signIn.bind(authService),
     signOut: authService.signOut.bind(authService),
@@ -47,8 +80,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }

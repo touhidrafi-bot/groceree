@@ -133,6 +133,22 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true, payment_intent: captured }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      case 'update_intent': {
+        if (!paymentIntentId) throw new Error('paymentIntentId is required')
+        if (!amount) throw new Error('amount is required')
+
+        const params = new URLSearchParams()
+        params.append('amount', Math.round(amount * 100).toString())
+
+        const r = await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}`, { method: 'POST', headers: stripeHeaders, body: params })
+        const updated = await r.json()
+        if (!r.ok) throw new Error(updated.error?.message || 'Failed to update payment intent')
+
+        // Note: Order total is already updated in the calling API, no need to update again
+
+        return new Response(JSON.stringify({ success: true, payment_intent: updated }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
       case 'cancel_intent': {
         if (!paymentIntentId) throw new Error('paymentIntentId is required')
         const r = await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}/cancel`, { method: 'POST', headers: stripeHeaders })

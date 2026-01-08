@@ -1,8 +1,9 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+export const dynamic = 'force-dynamic';
+
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { supabase, SUPABASE_URL } from '../../lib/auth';
 
 interface OrderItem {
@@ -42,23 +43,43 @@ interface OrderDetails {
 
 
 function OrderSuccessContent() {
-  const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId');
-  const sessionId = searchParams.get('session_id');
-  const paymentStatus = searchParams.get('payment');
-  const orderNumber = searchParams.get('orderNumber');
-  const total = searchParams.get('total');
-  const paymentMethod = searchParams.get('paymentMethod');
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [total, setTotal] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      setOrderId(params.get('orderId'));
+      setSessionId(params.get('session_id'));
+      setPaymentStatus(params.get('payment'));
+      setOrderNumber(params.get('orderNumber'));
+      setTotal(params.get('total'));
+      setPaymentMethod(params.get('paymentMethod'));
+    } catch {
+      // ignore; will handle missing params later
+    }
+  }, []);
 
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     const fetchOrderDetails = async () => {
+      if (!isMountedRef.current) return;
+
       if (!orderId) {
-        setError('Order ID not found');
-        setLoading(false);
+        if (isMountedRef.current) {
+          setError('Order ID not found');
+          setLoading(false);
+        }
         return;
       }
 
@@ -66,9 +87,13 @@ function OrderSuccessContent() {
         // Get current user session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
+        if (!isMountedRef.current) return;
+
         if (sessionError || !session) {
-          setError('Please sign in to view order details');
-          setLoading(false);
+          if (isMountedRef.current) {
+            setError('Please sign in to view order details');
+            setLoading(false);
+          }
           return;
         }
 
@@ -143,40 +168,54 @@ function OrderSuccessContent() {
           .eq('customer_id', session.user.id)
           .single();
 
+        if (!isMountedRef.current) return;
+
         if (orderError || !order) {
           console.error('Order fetch error:', orderError);
-          setError('Order not found or access denied');
-          setLoading(false);
+          if (isMountedRef.current) {
+            setError('Order not found or access denied');
+            setLoading(false);
+          }
           return;
         }
 
-const normalizedOrder: OrderDetails = {
-  ...order,
-  order_items: order.order_items.map((item: any) => ({
-    id: item.id,
-    quantity: Number(item.quantity),
-    unit_price: Number(item.unit_price),
-    bottle_price: Number(item.bottle_price ?? 0),
-    total_price: Number(item.total_price),
-    product: item.products ?? {
-      id: '',
-      name: 'Unknown product',
-      unit: '',
-      image_url: undefined,
-    },
-  })),
-};
+        const normalizedOrder: OrderDetails = {
+          ...order,
+          order_items: order.order_items.map((item: any) => ({
+            id: item.id,
+            quantity: Number(item.quantity),
+            unit_price: Number(item.unit_price),
+            bottle_price: Number(item.bottle_price ?? 0),
+            total_price: Number(item.total_price),
+            product: item.products ?? {
+              id: '',
+              name: 'Unknown product',
+              unit: '',
+              image_url: undefined,
+            },
+          })),
+        };
 
-setOrderDetails(normalizedOrder);
+        if (isMountedRef.current) {
+          setOrderDetails(normalizedOrder);
+        }
       } catch (err) {
         console.error('Error fetching order details:', err);
-        setError('Failed to load order details');
+        if (isMountedRef.current) {
+          setError('Failed to load order details');
+        }
       } finally {
-        setLoading(false);
+        if (isMountedRef.current) {
+          setLoading(false);
+        }
       }
     };
 
     fetchOrderDetails();
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [orderId, sessionId, paymentStatus]);
 
   // Format delivery time display
@@ -501,16 +540,5 @@ setOrderDetails(normalizedOrder);
 }
 
 export default function OrderSuccessPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading order confirmation...</p>
-        </div>
-      </div>
-    }>
-      <OrderSuccessContent />
-    </Suspense>
-  );
+  return <OrderSuccessContent />;
 }

@@ -73,11 +73,24 @@ class AuthService {
     loading: true,
     error: null
   };
+  private initPromise: Promise<void> | null = null;
+  private isInitializing = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      this.initializeAuth();
+      this.initializeAuthIfNeeded();
     }
+  }
+
+  private async initializeAuthIfNeeded() {
+    if (this.isInitializing || this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.isInitializing = true;
+    this.initPromise = this.initializeAuth();
+    await this.initPromise;
+    this.isInitializing = false;
   }
 
   private async initializeAuth() {
@@ -88,6 +101,7 @@ class AuthService {
         return;
       }
 
+      // Get initial session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
@@ -108,23 +122,35 @@ class AuthService {
       return;
     }
 
-    // Listen for auth changes
+    // Set up auth state change listener
     supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.id);
+
       try {
         if (event === 'SIGNED_IN' && session?.user) {
           await this.loadUserProfile(session.user.id);
+          this.setState({ loading: false });
         } else if (event === 'SIGNED_OUT') {
-          this.setState({ user: null, error: null });
+          this.setState({ user: null, error: null, loading: false });
         } else if (event === 'TOKEN_REFRESHED') {
           if (session?.user) {
             await this.loadUserProfile(session.user.id);
+            this.setState({ loading: false });
           }
         }
       } catch (error) {
         console.error('Error handling auth state change:', error);
-        this.setState({ user: null, error: 'Session expired. Please sign in again.' });
+        this.setState({ user: null, error: 'Session expired. Please sign in again.', loading: false });
       }
     });
+
+    // Safety timeout: ensure loading is set to false after 10 seconds
+    setTimeout(() => {
+      if (this.state.loading) {
+        console.warn('Auth initialization timeout - forcing loading to false');
+        this.setState({ loading: false });
+      }
+    }, 10000);
   }
 
   private async loadUserProfile(userId: string) {
@@ -190,7 +216,13 @@ class AuthService {
 
   subscribe(listener: (state: AuthState) => void) {
     this.listeners.push(listener);
-    listener(this.state); // Send current state immediately
+    // Send current state immediately, but ensure initialization has started
+    if (typeof window !== 'undefined') {
+      this.initializeAuthIfNeeded().catch(error => {
+        console.error('Error initializing auth before subscription:', error);
+      });
+    }
+    listener(this.state);
     return () => {
       this.listeners = this.listeners.filter(l => l !== listener);
     };

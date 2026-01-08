@@ -151,3 +151,12 @@ temp/
 *.temp
 
 .vercel
+
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local

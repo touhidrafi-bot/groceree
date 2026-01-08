@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../components/AuthProvider';
 import { supabase } from '../../lib/auth';
 import Link from 'next/link';
@@ -14,6 +14,7 @@ interface UserStats {
 
 export default function ProfileContent() {
   const { user, updateProfile, loading } = useAuth();
+  const isMountedRef = useRef(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -31,7 +32,9 @@ export default function ProfileContent() {
   });
 
   useEffect(() => {
-    if (user) {
+    isMountedRef.current = true;
+
+    if (user && isMountedRef.current) {
       setFormData({
         first_name: user.first_name || '',
         last_name: user.last_name || '',
@@ -45,10 +48,14 @@ export default function ProfileContent() {
       });
       loadUserStats();
     }
+
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [user]);
 
   const loadUserStats = async () => {
-    if (!user) return;
+    if (!user || !isMountedRef.current) return;
 
     try {
       if (user.role === 'customer') {
@@ -56,24 +63,30 @@ export default function ProfileContent() {
           .from('orders')
           .select('id')
           .eq('customer_id', user.id);
-        setStats({ totalOrders: orders?.length || 0 });
+        if (isMountedRef.current) {
+          setStats({ totalOrders: orders?.length || 0 });
+        }
       } else if (user.role === 'driver') {
         const { data: deliveries } = await supabase
           .from('orders')
           .select('id')
           .eq('driver_id', user.id);
-        setStats({ totalDeliveries: deliveries?.length || 0 });
+        if (isMountedRef.current) {
+          setStats({ totalDeliveries: deliveries?.length || 0 });
+        }
       } else if (user.role === 'admin') {
         const [products, orders, users] = await Promise.all([
           supabase.from('products').select('id'),
           supabase.from('orders').select('id'),
           supabase.from('users').select('id')
         ]);
-        setStats({
-          totalProducts: products.data?.length || 0,
-          totalOrders: orders.data?.length || 0,
-          totalUsers: users.data?.length || 0
-        });
+        if (isMountedRef.current) {
+          setStats({
+            totalProducts: products.data?.length || 0,
+            totalOrders: orders.data?.length || 0,
+            totalUsers: users.data?.length || 0
+          });
+        }
       }
     } catch (_error: any) {
       console.error('Error loading stats:', {
