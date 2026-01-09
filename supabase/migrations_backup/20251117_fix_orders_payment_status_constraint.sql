@@ -15,7 +15,7 @@ BEGIN
     EXECUTE
       'ALTER TABLE orders
          ADD CONSTRAINT orders_payment_status_check
-         CHECK (payment_status IN (''authorized'',''captured'',''refunded'',''failed'',''pending'') OR payment_status IS NULL)';
+         CHECK (payment_status IN (''authorized'',''captured'',''refunded'',''failed'',''pending'',''needs_review'') OR payment_status IS NULL)';
   END IF;
 END
 $$;

@@ -62,7 +62,7 @@ export default function StripeCheckout({
       setIsLoading(true);
       setError(null);
 
-      const { data, error } = await supabase.functions.invoke('stripe-payment-intent', {
+      const { data, error } = await supabase.functions.invoke('stripe-payment-intent-new', {
         body: {
           action: 'create_intent',
           orderId,

@@ -908,6 +908,10 @@ const paymentsDisabled =
                                     <div>• Payment processed securely through Stripe</div>
                                     <div>• Supports all major credit and debit cards</div>
                                     <div>• Order prepared after payment confirmation</div>
+                                    <div className="mt-2 text-xs text-green-700">
+                                      Your final total may change slightly due to weighted items or substitutions.
+                                      Any unused authorization will be released automatically.
+                                    </div>
                                   </div>
                                 </div>
                               )}

@@ -22,6 +22,13 @@ serve(async (req) => {
       }
     )
 
+    const supabaseServiceClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    )
+
+    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY')
+
     const body = await req.json()
     const { orderId, items, subtotal, gst, pst, total, editedBy, tipAmount, deliveryFee, discount } = body
 
@@ -58,6 +65,54 @@ serve(async (req) => {
     if (orderError) {
       console.error('Order update error:', orderError)
       throw orderError
+    }
+
+    // Check for incremental authorization if needed
+    const { data: orderData, error: fetchError } = await supabaseServiceClient
+      .from('orders')
+      .select('stripe_payment_intent_id, payment_status, authorized_amount, total')
+      .eq('id', orderId)
+      .single()
+
+    if (!fetchError && orderData && orderData.payment_status === 'authorized' && orderData.stripe_payment_intent_id && orderData.authorized_amount && computedTotal > orderData.authorized_amount) {
+      const extraAmount = computedTotal - orderData.authorized_amount
+      try {
+        const stripeHeaders = {
+          'Authorization': `Bearer ${stripeSecretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }
+        const incrementParams = new URLSearchParams({
+          amount: Math.round(extraAmount * 100).toString(),
+          reason: 'increased_amount'
+        })
+        const incrementResponse = await fetch(`https://api.stripe.com/v1/payment_intents/${orderData.stripe_payment_intent_id}/increment_authorization`, {
+          method: 'POST',
+          headers: stripeHeaders,
+          body: incrementParams,
+        })
+        const incrementResult = await incrementResponse.json()
+        if (!incrementResponse.ok) {
+          console.error('Incremental auth failed:', incrementResult.error?.message)
+          // Mark order as needs_review
+          await supabaseServiceClient
+            .from('orders')
+            .update({ payment_status: 'needs_review', updated_at: new Date().toISOString() })
+            .eq('id', orderId)
+        } else {
+          // Update authorized_amount
+          await supabaseServiceClient
+            .from('orders')
+            .update({ authorized_amount: computedTotal, updated_at: new Date().toISOString() })
+            .eq('id', orderId)
+        }
+      } catch (stripeError) {
+        console.error('Stripe incremental auth error:', stripeError)
+        // Mark as needs_review
+        await supabaseServiceClient
+          .from('orders')
+          .update({ payment_status: 'needs_review', updated_at: new Date().toISOString() })
+          .eq('id', orderId)
+      }
     }
 
     // Delete existing order items

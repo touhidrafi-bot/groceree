@@ -54,12 +54,15 @@ serve(async (req) => {
         if (intentOrderError || !intentOrderData) throw new Error(`Order not found: ${orderId}`)
         if (intentOrderData.customer_id !== user.id) throw new Error(`Order access denied: ${orderId}`)
 
+        const authorizedAmount = Math.ceil((amount || intentOrderData.total) * 1.10);
+
         const createParams = new URLSearchParams({
-          amount: Math.round((amount || intentOrderData.total) * 100).toString(),
+          amount: Math.round(authorizedAmount * 100).toString(),
           currency,
           capture_method: 'manual',
           'metadata[order_id]': orderId.toString(),
           'metadata[order_number]': intentOrderData.order_number,
+          'metadata[buffer_percent]': '10',
         })
 
         const createResponse = await fetch('https://api.stripe.com/v1/payment_intents', {
@@ -73,7 +76,7 @@ serve(async (req) => {
 
         await supabaseServiceClient
           .from('orders')
-          .update({ stripe_payment_intent_id: paymentIntent.id, payment_status: 'pending', updated_at: new Date().toISOString() })
+          .update({ stripe_payment_intent_id: paymentIntent.id, authorized_amount: authorizedAmount, payment_status: 'authorized', updated_at: new Date().toISOString() })
           .eq('id', orderId)
 
         return new Response(JSON.stringify({ success: true, client_secret: paymentIntent.client_secret, payment_intent_id: paymentIntent.id }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
