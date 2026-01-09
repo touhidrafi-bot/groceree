@@ -49,6 +49,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     fee: 5.00
   });
   const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
+  const [isFirstSyncAfterLogin, setIsFirstSyncAfterLogin] = useState(false);
 
   useEffect(() => {
     const updateState = () => {
@@ -73,6 +74,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (user) {
+      setIsFirstSyncAfterLogin(true);
       syncCartWithDatabase();
     }
   }, [user]);
@@ -86,6 +88,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!user || !isRehydrated || authLoading) return;
 
     try {
+      const userJustLoggedIn = isFirstSyncAfterLogin;
+      const firstLoadAfterLogin = isFirstSyncAfterLogin;
+      const shouldMergeCart = userJustLoggedIn || firstLoadAfterLogin;
+
       // Get current local cart items before syncing
       const localItems = cartStore.getItems();
 
@@ -132,35 +138,37 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      // Clear cart and rebuild with merged items
-      cartStore.clearCart();
+      if (shouldMergeCart) {
+        // Clear cart and rebuild with merged items
+        cartStore.clearCart();
 
-      // Add local items first (they have priority)
-      localItems.forEach(item => {
-        const botPrice = (item as any).bottle_price;
-        cartStore.addItem({
-          id: item.id,
-          name: item.name,
-          image: item.image,
-          bottle_price: botPrice && botPrice > 0 ? Number(botPrice) : undefined,
-          price: item.price,
-          originalPrice: item.originalPrice,
-          unit: item.unit,
-          category: item.category,
-          isOrganic: item.isOrganic,
-          inStock: item.inStock,
-          sku: item.sku,
-          scalable: item.scalable,
-          taxType: item.taxType || 'none'
-        }, item.quantity);
-      });
+        // Add local items first (they have priority)
+        localItems.forEach(item => {
+          const botPrice = (item as any).bottle_price;
+          cartStore.addItem({
+            id: item.id,
+            name: item.name,
+            image: item.image,
+            bottle_price: botPrice && botPrice > 0 ? Number(botPrice) : undefined,
+            price: item.price,
+            originalPrice: item.originalPrice,
+            unit: item.unit,
+            category: item.category,
+            isOrganic: item.isOrganic,
+            inStock: item.inStock,
+            sku: item.sku,
+            scalable: item.scalable,
+            taxType: item.taxType || 'none'
+          }, item.quantity);
+        });
 
-      // Add database items that aren't in local cart (to preserve past items)
-      databaseItemMap.forEach((item, productId) => {
-        if (!localItemMap.has(productId)) {
-          cartStore.addItem(item.product, item.quantity);
-        }
-      });
+        // Add database items that aren't in local cart (to preserve past items)
+        databaseItemMap.forEach((item, productId) => {
+          if (!localItemMap.has(productId)) {
+            cartStore.addItem(item.product, item.quantity);
+          }
+        });
+      }
 
       // Sync local items to database for persistence
       for (const localItem of localItems) {
@@ -168,6 +176,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           await addItemToDatabase(localItem.id, localItem.quantity);
         }
       }
+
+      setIsFirstSyncAfterLogin(false);
     } catch (error) {
       console.error('Error syncing cart with database:', error);
     }

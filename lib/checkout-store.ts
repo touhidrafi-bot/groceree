@@ -84,25 +84,31 @@ export class CheckoutStore {
     }
   }
 
-  // Save state to localStorage
-  saveState(state: Partial<CheckoutState>) {
-    if (typeof window === 'undefined') return;
+  private lastState: CheckoutState | null = null;
 
-    try {
-      const current = this.loadState();
-      const merged = { ...current, ...state };
-      localStorage.setItem(
-        CHECKOUT_STORAGE_KEY,
-        JSON.stringify({
-          version: CHECKOUT_STORAGE_VERSION,
-          state: merged,
-          timestamp: new Date().toISOString(),
-        })
-      );
-    } catch (error) {
-      console.warn('Error saving checkout state:', error);
-    }
+saveState(state: Partial<CheckoutState>) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    // Use last known state if available, otherwise load once
+    const current = this.lastState ?? this.loadState();
+    const merged = { ...current, ...state };
+
+    this.lastState = merged;
+
+    localStorage.setItem(
+      CHECKOUT_STORAGE_KEY,
+      JSON.stringify({
+        version: CHECKOUT_STORAGE_VERSION,
+        state: merged,
+        timestamp: new Date().toISOString(),
+      })
+    );
+  } catch (error) {
+    console.warn('Error saving checkout state:', error);
   }
+}
+
 
   // Update specific form fields
   updateForm(updates: Partial<CheckoutState['form']>) {

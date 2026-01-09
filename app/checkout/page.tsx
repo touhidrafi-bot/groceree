@@ -121,6 +121,12 @@ export default function CheckoutPage() {
     ...persistedState.form,
     postalCode: persistedState.form.postalCode || deliveryInfo?.postalCode || '',
   });
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("canceled") === "true") {
+    showNotification("Payment canceled. You can try again.", "info");
+  }
+}, [showNotification]);
 
   // Persist current step whenever it changes
   useEffect(() => {
@@ -304,6 +310,16 @@ const paymentsDisabled =
       };
 
       const result = await checkout(orderData);
+      // Save orderId for Stripe redirect 
+      _setCreatedOrderId(result.orderId);
+// Mark order as pending payment BEFORE redirecting to Stripe
+await supabase
+  .from("orders")
+  .update({
+    payment_status: "pending_payment",
+    status: "awaiting_payment"
+  })
+  .eq("id", result.orderId);
 
       if (!result?.success) {
         throw new Error(result?.message || 'Order creation failed');
@@ -353,9 +369,6 @@ const paymentsDisabled =
             throw new Error(stripeResult.error || 'Failed to create payment session');
           }
 
-          // Clear checkout state before redirect
-          checkoutStore.clearState();
-
           // Redirect user to Stripe Checkout page
           window.location.href = stripeResult.checkout_url;
           return;
@@ -391,6 +404,8 @@ const paymentsDisabled =
 
   // Stripe modal callbacks
   const handleStripeSuccess = () => {
+    // Clear checkout state after successful payment
+          checkoutStore.clearState();
     setShowStripeCheckout(false);
     showNotification('Payment completed successfully!', 'success');
     setTimeout(() => {

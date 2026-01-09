@@ -69,7 +69,7 @@ serve(async (req) => {
           frontendUrl = 'https://groceree.ca'; // fallback to production domain
         }
         params.append('success_url', `${frontendUrl}/order-success?orderId=${oid}&session_id={CHECKOUT_SESSION_ID}&payment=success`)
-        params.append('cancel_url', `${frontendUrl}/checkout`)
+params.append('cancel_url', `${frontendUrl}/checkout?canceled=true`)
         params.append('metadata[order_id]', String(oid))
         params.append('line_items[0][price_data][currency]', cur)
         params.append('line_items[0][price_data][product_data][name]', `Order ${orderChk.order_number || oid}`)
