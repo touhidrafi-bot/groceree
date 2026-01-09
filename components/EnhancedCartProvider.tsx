@@ -33,7 +33,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isRehydrated, loading: authLoading } = useAuth();
   const [items, setItems] = useState<CartItem[]>([]);
   const [itemCount, setItemCount] = useState(0);
   const [subtotal, setSubtotal] = useState(0);
@@ -83,22 +83,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const syncCartWithDatabase = async () => {
-    if (!user) return;
+    if (!user || !isRehydrated || authLoading) return;
 
     try {
       // Get current local cart items before syncing
       const localItems = cartStore.getItems();
 
-      const { data: cartItems, error } = await supabase
-        .from('carts')
-        .select(`
-          *,
-          products(*)
-        `)
-        .eq('user_id', user.id);
+      const response = await fetch('/api/cart/sync');
+      if (!response.ok) {
+        console.error('Failed to sync cart with database:', response.status, response.statusText);
+        return;
+      }
 
-      if (error) {
-        console.error('Error syncing cart with database:', error);
+      const cartItems = await response.json();
+
+      // Ensure cartItems is an array
+      if (!Array.isArray(cartItems)) {
+        console.error('Invalid cart items response:', cartItems);
         return;
       }
 
@@ -107,7 +108,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const databaseItemMap = new Map();
 
       // Process database items
-      cartItems?.forEach(cartItem => {
+      cartItems.forEach((cartItem: any) => {
         if (cartItem.products) {
           databaseItemMap.set(cartItem.products.id, {
             product: {
@@ -173,21 +174,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addItemToDatabase = async (productId: string, quantity: number) => {
-    if (!user || !isValidUUID(productId)) return;
+    if (!user || !isRehydrated || authLoading || !isValidUUID(productId)) {
+      console.warn('Skipping addItemToDatabase: user not ready or invalid productId', {
+        user: !!user,
+        isRehydrated,
+        authLoading,
+        productId
+      });
+      return;
+    }
 
     try {
-      const { error } = await supabase
-        .from('carts')
-        .upsert({
-          user_id: user.id,
-          product_id: productId,
-          quantity: quantity
-        }, {
-          onConflict: 'user_id,product_id'
-        });
+      const response = await fetch('/api/cart/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', productId, quantity })
+      });
 
-      if (error) {
-        console.error('Error adding item to database cart:', error);
+      const responseData = await response.text();
+      console.log('Cart update response:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        data: responseData
+      });
+
+      if (!response.ok) {
+        console.error('Error adding item to database cart:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: responseData
+        });
+      } else {
+        console.log('Successfully added item to database cart:', { productId, quantity });
       }
     } catch (error) {
       console.error('Error adding item to database cart:', error);
@@ -195,17 +214,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const removeItemFromDatabase = async (productId: string) => {
-    if (!user || !isValidUUID(productId)) return;
+    if (!user || !isRehydrated || authLoading || !isValidUUID(productId)) {
+      console.warn('Skipping removeItemFromDatabase: user not ready or invalid productId', {
+        user: !!user,
+        isRehydrated,
+        authLoading,
+        productId
+      });
+      return;
+    }
 
     try {
-      const { error } = await supabase
-        .from('carts')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('product_id', productId);
+      const response = await fetch('/api/cart/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove', productId })
+      });
 
-      if (error) {
-        console.error('Error removing item from database cart:', error);
+      const responseData = await response.text();
+      console.log('Cart remove response:', {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        data: responseData
+      });
+
+      if (!response.ok) {
+        console.error('Error removing item from database cart:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: responseData
+        });
+      } else {
+        console.log('Successfully removed item from database cart:', { productId });
       }
     } catch (error) {
       console.error('Error removing item from database cart:', error);
@@ -213,16 +254,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const clearDatabaseCart = async () => {
-    if (!user) return;
+    if (!user || !isRehydrated || authLoading) return;
 
     try {
-      const { error } = await supabase
-        .from('carts')
-        .delete()
-        .eq('user_id', user.id);
+      const response = await fetch('/api/cart/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear' })
+      });
 
-      if (error) {
-        console.error('Error clearing database cart:', error);
+      if (!response.ok) {
+        console.error('Error clearing database cart');
       }
     } catch (error) {
       console.error('Error clearing database cart:', error);
@@ -230,7 +272,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkout = async (orderData: any) => {
-    if (!user?.id) {
+    if (!user?.id || !isRehydrated || authLoading) {
       throw new Error('Please sign in to place an order');
     }
 
@@ -349,11 +391,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         tipAmountFromOrderData: completeOrderData.tipAmount,
       });
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-order`, {
+      const response = await fetch('/api/orders/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           orderData: completeOrderData,
@@ -409,7 +450,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const enhancedAddItem = (product: Omit<CartItem, 'quantity'>, quantity: number = 1): boolean => {
     const success = cartStore.addItem(product, quantity);
-    if (success && user && isValidUUID(product.id)) {
+    if (success && user && isRehydrated && !authLoading && isValidUUID(product.id)) {
       addItemToDatabase(product.id, quantity);
     }
     return success;
@@ -417,7 +458,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const enhancedUpdateQuantity = (id: string, quantity: number): boolean => {
     const success = cartStore.updateQuantity(id, quantity);
-    if (success && user && isValidUUID(id)) {
+    if (success && user && isRehydrated && !authLoading && isValidUUID(id)) {
       if (quantity <= 0) {
         removeItemFromDatabase(id);
       } else {
@@ -429,29 +470,33 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const enhancedRemoveItem = (id: string): void => {
     cartStore.removeItem(id);
-    if (user && isValidUUID(id)) {
+    if (user && isRehydrated && !authLoading && isValidUUID(id)) {
       removeItemFromDatabase(id);
     }
   };
 
   const enhancedClearCart = (): void => {
     cartStore.clearCart();
-    if (user) {
+    if (user && isRehydrated && !authLoading) {
       clearDatabaseCart();
     }
   };
 
   const enhancedApplyPromoCode = async (code: string): Promise<{ success: boolean; message: string }> => {
+    if (!isRehydrated || authLoading) {
+      return { success: false, message: 'Authentication is still loading. Please try again.' };
+    }
+
     try {
       console.log('🎯 Apply promo code triggered:', { code, currentSubtotal: subtotal });
 
-      // Validate promo code against Supabase
-      const { PromocodeService } = await import('../lib/promo-code');
-      const validation = await PromocodeService.validatePromoCode(
-        code,
-        cartStore.getSubtotal(),
-        user?.id
-      );
+      const response = await fetch('/api/promo/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, subtotal: cartStore.getSubtotal(), userId: user?.id })
+      });
+
+      const validation = await response.json();
 
       console.log('📋 Validation result:', { success: validation.success, message: validation.message, promoCode: validation.promoCode?.code });
 

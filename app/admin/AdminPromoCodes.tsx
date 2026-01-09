@@ -5,7 +5,8 @@ import { PromocodeService, PromoCode } from '../../lib/promo-code';
 import { useAuth } from '../../components/AuthProvider';
 
 export default function AdminPromoCodes() {
-  const { user } = useAuth();
+  const { user, isRehydrated, loading: authLoading } = useAuth();
+  const authReady = isRehydrated && !authLoading;
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,10 +33,13 @@ export default function AdminPromoCodes() {
 
   // Load promo codes on mount
   useEffect(() => {
+    if (!authReady) return;
     loadPromoCodes();
-  }, [user?.id]);
+  }, [authReady, user?.id]);
 
   const loadPromoCodes = async () => {
+    if (!authReady) return;
+
     try {
       setLoading(true);
       setError(null);

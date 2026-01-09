@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/auth';
+import { useAuth } from '../../components/AuthProvider';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 
 interface ReportData {
@@ -29,11 +30,17 @@ export default function AdminReports() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('30'); // days
 
+  const { isRehydrated, loading: authLoading } = useAuth();
+  const authReady = isRehydrated && !authLoading;
+
   useEffect(() => {
+    if (!authReady) return;
     loadReportData();
-  }, [dateRange]);
+  }, [authReady, dateRange]);
 
   const loadReportData = async () => {
+    if (!authReady) return;
+
     try {
       const endDate = new Date();
       const startDate = new Date();

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useCart } from './EnhancedCartProvider';
-import { supabase, SUPABASE_CONFIGURED } from '../lib/auth';
+import { useAuth } from './AuthProvider';
+import { SUPABASE_CONFIGURED } from '../lib/auth';
 import {
   validatePostalCode,
   getNextAvailableDeliveryTime,
@@ -17,6 +18,9 @@ export default function DeliveryEstimator() {
   const [isChecking, setIsChecking] = useState(false);
   const [cutoffTime, setCutoffTime] = useState('1:00 PM');
 
+  const { isRehydrated, loading: authLoading } = useAuth();
+  const authReady = isRehydrated && !authLoading;
+
   // Load cutoff time from delivery settings
   useEffect(() => {
     const loadCutoffTime = async () => {
@@ -24,16 +28,11 @@ export default function DeliveryEstimator() {
         console.warn('Supabase not configured; skipping cutoff time load in DeliveryEstimator.');
         return;
       }
+
+      if (!authReady) return;
+
       try {
-        const { data, error } = await supabase
-          .from('delivery_settings')
-          .select('cutoff_time')
-          .single();
-
-        if (error) {
-          console.error('Supabase error loading cutoff time (DeliveryEstimator):', JSON.stringify(error));
-        }
-
+        const data = await fetch('/api/delivery/schedule').then(r => r.json());
         if (data && data.cutoff_time) {
           const [hour, minute] = data.cutoff_time.split(':').map(Number);
           const period = hour >= 12 ? 'PM' : 'AM';
@@ -46,7 +45,7 @@ export default function DeliveryEstimator() {
     };
 
     loadCutoffTime();
-  }, []);
+  }, [authReady]);
 
   // Live validation as user types
   useEffect(() => {

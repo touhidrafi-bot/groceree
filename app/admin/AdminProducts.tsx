@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { supabase, SUPABASE_URL, SUPABASE_CONFIGURED } from '../../lib/auth';
+import { useAuth } from '../../components/AuthProvider';
 
 interface Product {
   id: string;
@@ -147,7 +148,12 @@ export default function AdminProducts() {
     reason: ''
   });
 
+  const { isRehydrated, loading: authLoading } = useAuth();
+  const authReady = isRehydrated && !authLoading;
+
   useEffect(() => {
+    if (!authReady) return;
+
     fetchProducts();
     fetchStockAlerts();
     fetchStockAdjustments();
@@ -159,7 +165,7 @@ export default function AdminProducts() {
     }, 60000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [authReady]);
 
   // Filter products based on search query
   useEffect(() => {
@@ -189,36 +195,15 @@ export default function AdminProducts() {
   }, [products, searchQuery]);
 
   const fetchProducts = async () => {
+    if (!authReady) return;
+
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Not authenticated');
+      const response = await fetch('/api/admin/products');
+      if (!response.ok) {
+        throw new Error('Failed to fetch products');
       }
-
-      let fetchedProducts: Product[] = [];
-
-      if (!SUPABASE_URL) {
-        console.warn('Skipping fetchProducts: NEXT_PUBLIC_SUPABASE_URL not configured');
-        setProducts([]);
-      } else {
-        const response = await fetch(`${SUPABASE_URL}/functions/v1/admin-products-management`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            method: 'GET',
-            action: 'getProducts'
-          }),
-        });
-
-        const result = await response.json();
-        if (result.error) throw new Error(result.error);
-
-        fetchedProducts = result.products || [];
-        setProducts(fetchedProducts);
-      }
+      const fetchedProducts = await response.json();
+      setProducts(fetchedProducts);
 
       // Update stockEditProduct if it's open with fresh data
       if (stockEditProduct && fetchedProducts.length > 0) {
@@ -243,6 +228,8 @@ export default function AdminProducts() {
   };
 
   const fetchStockAlerts = async () => {
+    if (!authReady) return;
+
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !session) return;
@@ -268,22 +255,15 @@ export default function AdminProducts() {
   };
 
   const fetchStockAdjustments = async () => {
-    try {
-      const { data: adjustments, error } = await supabase
-        .from('stock_adjustments')
-        .select(`
-          *,
-          products (name, sku),
-          users (email)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(50);
+    if (!authReady) return;
 
-      if (error) {
-        console.error('Error fetching stock adjustments from Supabase:', error);
-      } else {
-        setStockAdjustments(adjustments || []);
+    try {
+      const response = await fetch('/api/admin/stock-adjustments');
+      if (!response.ok) {
+        throw new Error('Failed to fetch stock adjustments');
       }
+      const adjustments = await response.json();
+      setStockAdjustments(adjustments);
     } catch (error) {
       console.error('Error fetching stock adjustments:', error);
     }

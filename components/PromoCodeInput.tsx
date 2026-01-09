@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useCart } from './EnhancedCartProvider';
 import { useCartNotification } from './CartNotification';
+import { useAuth } from './AuthProvider';
 import type { PromoCode as PromoCodeType } from '../lib/cart-store';
-import { PromocodeService } from '../lib/promo-code';
 
 export default function PromoCodeInput() {
   const [promoCode, setPromoCode] = useState('');
@@ -15,13 +15,17 @@ export default function PromoCodeInput() {
 
   const { applyPromoCode, removePromoCode, appliedPromo } = useCart();
   const { showNotification } = useCartNotification();
+  const { isRehydrated, loading: authLoading } = useAuth();
+  const authReady = isRehydrated && !authLoading;
 
   useEffect(() => {
     let isMounted = true;
     const fetchPromos = async () => {
+      if (!authReady) return;
+
       try {
         setIsSuggestLoading(true);
-        const promos = await PromocodeService.getAvailablePromoCodes();
+        const promos = await fetch('/api/promo/list').then(r => r.json());
         if (isMounted) setAvailablePromos(promos || []);
       } catch {
           // no-op; suggestions are optional
@@ -34,7 +38,7 @@ export default function PromoCodeInput() {
     return () => {
       isMounted = false;
     };
-  }, [appliedPromo]);
+  }, [appliedPromo, authReady]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

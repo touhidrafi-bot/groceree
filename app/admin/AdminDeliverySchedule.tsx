@@ -42,7 +42,8 @@ interface ScheduledDelivery {
 }
 
 export default function AdminDeliverySchedule() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isRehydrated, loading: authLoading } = useAuth();
+  const authReady = isRehydrated && !authLoading;
   const [settings, setSettings] = useState<DeliverySettings | null>(null);
   const [windows, setWindows] = useState<DeliveryWindow[]>([]);
   const [deliveries, setDeliveries] = useState<ScheduledDelivery[]>([]);
@@ -60,7 +61,7 @@ export default function AdminDeliverySchedule() {
     }
     abortControllerRef.current = new AbortController();
 
-    if (!authLoading && user && user.role === 'admin') {
+    if (authReady && user && user.role === 'admin') {
       loadData();
       setSelectedDate(new Date().toISOString().split('T')[0]);
     }
@@ -70,9 +71,11 @@ export default function AdminDeliverySchedule() {
         abortControllerRef.current.abort();
       }
     };
-  }, [authLoading, user]);
+  }, [authReady, user]);
 
   const loadData = async () => {
+    if (!authReady) return;
+
     setLoading(true);
     try {
       await Promise.all([loadSettings(), loadWindows(), loadScheduledDeliveries()]);

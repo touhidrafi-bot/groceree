@@ -274,22 +274,11 @@ export class PromocodeService {
   static async getAllPromoCodes(_userId?: string): Promise<PromoCode[]> {
     try {
       console.log('📚 Fetching all promo codes');
-      // Simple query without joins to avoid RLS recursion
-      const { data, error } = await supabase
-        .from('promo_codes')
-        .select('id, code, description, discount_type, discount_value, min_order_amount, max_uses, current_uses, uses_per_user_limit, is_active, is_public, start_date, end_date, expires_at, created_at, updated_at, created_by')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Supabase error fetching promo codes:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
-        return [];
+      const response = await fetch('/api/admin/promo-codes');
+      if (!response.ok) {
+        throw new Error('Failed to fetch promo codes');
       }
-
+      const data = await response.json();
       console.log('✅ Fetched promo codes:', data?.length || 0, 'codes');
       return data || [];
     } catch (error: any) {
@@ -360,24 +349,23 @@ export class PromocodeService {
 
       console.log('📊 Insert data:', insertData);
 
-      const { data, error } = await supabase
-        .from('promo_codes')
-        .insert(insertData)
-        .select()
-        .single();
+      const response = await fetch('/api/admin/promo-codes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(insertData),
+      });
 
-      if (error) {
-        console.error('❌ Supabase error creating promo code:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
+      if (!response.ok) {
+        const errorData = await response.json();
         return {
           success: false,
-          message: error.message || error.details || 'Failed to create promo code'
+          message: errorData.error || 'Failed to create promo code'
         };
       }
+
+      const data = await response.json();
 
       console.log('✅ Promo code created successfully:', data);
       return {
@@ -429,25 +417,23 @@ export class PromocodeService {
 
       console.log('📊 Update data:', updateData);
 
-      const { data, error } = await supabase
-        .from('promo_codes')
-        .update(updateData)
-        .eq('id', id)
-        .select()
-        .single();
+      const response = await fetch('/api/admin/promo-codes', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id, ...updateData }),
+      });
 
-      if (error) {
-        console.error('❌ Supabase error updating promo code:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint
-        });
+      if (!response.ok) {
+        const errorData = await response.json();
         return {
           success: false,
-          message: error.message || error.details || 'Failed to update promo code'
+          message: errorData.error || 'Failed to update promo code'
         };
       }
+
+      const data = await response.json();
 
       console.log('✅ Promo code updated successfully:', data);
       return {
@@ -474,16 +460,15 @@ export class PromocodeService {
    */
   static async deletePromoCode(id: string): Promise<{ success: boolean; message: string }> {
     try {
-      const { error } = await supabase
-        .from('promo_codes')
-        .delete()
-        .eq('id', id);
+      const response = await fetch(`/api/admin/promo-codes?id=${id}`, {
+        method: 'DELETE',
+      });
 
-      if (error) {
-        console.error('Error deleting promo code:', error);
+      if (!response.ok) {
+        const errorData = await response.json();
         return {
           success: false,
-          message: error.message || 'Failed to delete promo code'
+          message: errorData.error || 'Failed to delete promo code'
         };
       }
 
@@ -507,28 +492,11 @@ export class PromocodeService {
     promoCodeId: string
   ): Promise<{ total: number; users: number; recentUsage: PromoCodeUsage[] }> {
     try {
-      const { data: usageData, error: usageError } = await supabase
-        .from('promo_code_usage')
-        .select('*')
-        .eq('promo_code_id', promoCodeId)
-        .order('used_at', { ascending: false })
-        .limit(10);
-
-      if (usageError) {
-        console.error('Error fetching usage stats:', usageError);
+      const response = await fetch(`/api/admin/promo-codes/usage?id=${promoCodeId}`);
+      if (!response.ok) {
         return { total: 0, users: 0, recentUsage: [] };
       }
-
-      const { data: uniqueUsers } = await supabase
-        .from('promo_code_usage')
-        .select('user_id', { count: 'exact' })
-        .eq('promo_code_id', promoCodeId);
-
-      return {
-        total: usageData?.length || 0,
-        users: uniqueUsers?.length || 0,
-        recentUsage: usageData || []
-      };
+      return await response.json();
     } catch (error: any) {
       console.error('Error fetching usage stats:', error);
       return { total: 0, users: 0, recentUsage: [] };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/auth';
+import { useAuth } from '../../components/AuthProvider';
 
 interface User {
   id: string;
@@ -39,19 +39,24 @@ export default function AdminUsers() {
     is_active: true
   });
 
+  const { isRehydrated, loading: authLoading } = useAuth();
+  const authReady = isRehydrated && !authLoading;
+
   useEffect(() => {
+    if (!authReady) return;
     loadUsers();
-  }, []);
+  }, [authReady]);
 
   const loadUsers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
+    if (!authReady) return;
 
-      if (error) throw error;
-      setUsers(data || []);
+    try {
+      const response = await fetch('/api/admin/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const data = await response.json();
+      setUsers(data);
     } catch (error: any) {
       console.error('Error loading users:', {
         message: error?.message || 'Unknown error',
@@ -64,15 +69,23 @@ export default function AdminUsers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       if (editingUser) {
-        const { error } = await supabase
-          .from('users')
-          .update(formData)
-          .eq('id', editingUser.id);
-        
-        if (error) throw error;
+        const response = await fetch('/api/admin/users', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: editingUser.id,
+            ...formData
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update user');
+        }
       }
 
       await loadUsers();
@@ -98,12 +111,21 @@ export default function AdminUsers() {
 
   const toggleUserStatus = async (userId: string, isActive: boolean) => {
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ is_active: !isActive })
-        .eq('id', userId);
-      
-      if (error) throw error;
+      const response = await fetch('/api/admin/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          is_active: !isActive
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update user status');
+      }
+
       await loadUsers();
     } catch (error) {
       console.error('Error updating user status:', error);

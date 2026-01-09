@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { authService, AuthState, User } from '../lib/auth';
+import { authService, AuthState, User as _user } from '../lib/auth';
 
 interface AuthContextType extends AuthState {
   isRehydrated: boolean;

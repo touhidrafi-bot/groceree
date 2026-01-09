@@ -12,13 +12,11 @@ export default function ContactInfo() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">Our Location</h3>
               <p className="text-gray-600">
-                1234 Main Street<br />
-                Vancouver, BC V6B 1A1<br />
+                Vancouver, BC<br />
                 Canada
               </p>
             </div>
           </div>
-
           <div className="flex items-start space-x-4">
             <div className="w-6 h-6 flex items-center justify-center">
               <i className="ri-phone-line text-green-600 text-xl"></i>
@@ -26,7 +24,7 @@ export default function ContactInfo() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">Phone</h3>
               <p className="text-gray-600">(604) 555-0123</p>
-              <p className="text-sm text-gray-500 mt-1">Mon-Fri: 8AM-8PM, Sat-Sun: 9AM-6PM</p>
+              <p className="text-sm text-gray-500 mt-1">Mon-Fri: 12PM-8PM, Sat-Sun: 2PM-8PM</p>
             </div>
           </div>
 
@@ -48,9 +46,8 @@ export default function ContactInfo() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">Delivery Hours</h3>
               <div className="text-gray-600 space-y-1">
-                <p>Monday - Friday: 8:00 AM - 9:00 PM</p>
-                <p>Saturday: 9:00 AM - 8:00 PM</p>
-                <p>Sunday: 10:00 AM - 7:00 PM</p>
+                <p>Everyday: 12:00 PM - 11:00 PM</p>
+                <p>Closed: Dec 25 - Jan 1st</p>
               </div>
             </div>
           </div>
@@ -62,7 +59,7 @@ export default function ContactInfo() {
             <div>
               <h3 className="font-semibold text-gray-900 mb-1">Delivery Area</h3>
               <p className="text-gray-600">We deliver within Vancouver and nearby areas</p>
-              <p className="text-sm text-gray-500 mt-1">Free delivery on 1st 3 orders upon promo code use</p>
+              <p className="text-sm text-gray-500 mt-1">Free delivery on first 3 orders upon promo code use</p>
             </div>
           </div>
         </div>

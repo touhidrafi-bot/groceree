@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/auth';
+import { useAuth } from '../../components/AuthProvider';
 import OrderEditModal from '../../components/admin/OrderEditModal';
 
 interface Order {
@@ -99,6 +100,9 @@ export default function AdminOrders() {
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
   const [editingDriverOrderId, setEditingDriverOrderId] = useState<string | null>(null);
 
+  const { isRehydrated, loading: authLoading } = useAuth();
+  const authReady = isRehydrated && !authLoading;
+
   const _handleImageError = (imageKey: string) => {
   setImageErrors(prev => {
     if (prev[imageKey]) return prev; // already marked, do nothing
@@ -107,86 +111,19 @@ export default function AdminOrders() {
 };
 
   useEffect(() => {
+    if (!authReady) return;
     loadOrders();
     loadDrivers();
     loadProducts();
-  }, []);
+  }, [authReady]);
 
   const loadOrders = async (): Promise<Order[] | null> => {
-    const baseSelect = `
-          id,
-          order_number,
-          status,
-          payment_method,
-          payment_status,
-          payment_date,
-          stripe_payment_intent_id,
-          total,
-          subtotal,
-          gst,
-          pst,
-          tax,
-          delivery_fee,
-          discount,
-          tip_amount,
-          created_at,
-          delivery_address,
-          delivery_instructions,
-          customer:users!orders_customer_id_fkey(first_name, last_name, email, phone),
-          driver:users!orders_driver_id_fkey(first_name, last_name),
-          order_items(
-            id,
-            product_id,
-            quantity,
-            unit_price,
-            total_price,
-            final_weight,
-            bottle_price,
-            products(id, name, unit, scalable, tax_type, stock_quantity, price, bottle_price)
-          )
-        `;
+    if (!authReady) return null;
 
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(baseSelect)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        const message = (error as any)?.message || '';
-        const details = (error as any)?.details || null;
-        const code = (error as any)?.code || null;
-        const hint = (error as any)?.hint || null;
-        console.error('Supabase error loading admin orders:', { message, code, details, hint });
-        setOrders([]);
-        return null;
-      }
-
-      const formattedOrders: Order[] = (data || []).map((order: any) => {
-        const orderItems = (order.order_items || []).map((item: any) => ({
-          id: item.id,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price,
-          final_price: item.total_price,
-          final_weight: item.final_weight,
-          bottle_price: item.bottle_price,
-          products: Array.isArray(item.products) ? item.products[0] : item.products
-        }));
-
-        return {
-          ...order,
-          order_items: orderItems,
-          discount: order.discount ?? 0,
-          tip_amount: order.tip_amount ?? 0,
-          customer: Array.isArray(order.customer) ? order.customer[0] : order.customer,
-          driver: Array.isArray(order.driver) ? order.driver[0] : order.driver
-        };
-      });
-
-      setOrders(formattedOrders);
-      return formattedOrders;
+      const orders = await fetch('/api/admin/orders').then(r => r.json());
+      setOrders(orders);
+      return orders;
     } catch (err) {
       const message = (err as any)?.message || String(err);
       const details = (err as any)?.details || null;
@@ -199,18 +136,11 @@ export default function AdminOrders() {
   };
 
  const loadDrivers = async (): Promise<void> => {
+  if (!authReady) return;
+
   try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, first_name, last_name')
-      .eq('role', 'driver')
-      .eq('is_active', true);
-
-    if (error) {
-      throw error;
-    }
-
-    setDrivers((data as Driver[]) ?? []);
+    const drivers = await fetch('/api/admin/drivers').then(r => r.json());
+    setDrivers(drivers);
   } catch (err) {
     console.error('Error loading drivers:', err);
     setDrivers([]);
@@ -219,15 +149,11 @@ export default function AdminOrders() {
 
 
   const loadProducts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, price, bottle_price, unit, scalable, tax_type, stock_quantity, category')
-        .eq('is_active', true)
-        .order('name');
+    if (!authReady) return;
 
-      if (error) throw error;
-      setProducts(data || []);
+    try {
+      const products = await fetch('/api/admin/products').then(r => r.json());
+      setProducts(products);
     } catch (error) {
       console.error('Error loading products:', error);
     }
