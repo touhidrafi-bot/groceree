@@ -274,7 +274,9 @@ export class PromocodeService {
   static async getAllPromoCodes(_userId?: string): Promise<PromoCode[]> {
     try {
       console.log('📚 Fetching all promo codes');
-      const response = await fetch('/api/admin/promo-codes');
+      const response = await fetch('/api/admin/promo-codes', {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch promo codes');
       }
@@ -354,6 +356,7 @@ export class PromocodeService {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(insertData),
       });
 
@@ -422,6 +425,7 @@ export class PromocodeService {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ id, ...updateData }),
       });
 

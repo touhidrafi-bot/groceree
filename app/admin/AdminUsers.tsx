@@ -51,7 +51,9 @@ export default function AdminUsers() {
     if (!authReady) return;
 
     try {
-      const response = await fetch('/api/admin/users');
+      const response = await fetch('/api/admin/users', {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }
@@ -77,6 +79,7 @@ export default function AdminUsers() {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
           body: JSON.stringify({
             userId: editingUser.id,
             ...formData
@@ -116,6 +119,7 @@ export default function AdminUsers() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           userId,
           is_active: !isActive

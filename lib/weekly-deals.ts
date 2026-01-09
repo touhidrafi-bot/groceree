@@ -85,6 +85,7 @@ export async function createDeal(deal: CreateDealInput): Promise<WeeklyDeal | nu
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(deal),
     });
 

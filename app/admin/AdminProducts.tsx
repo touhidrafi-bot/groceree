@@ -198,7 +198,9 @@ export default function AdminProducts() {
     if (!authReady) return;
 
     try {
-      const response = await fetch('/api/admin/products');
+      const response = await fetch('/api/admin/products', {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch products');
       }
@@ -258,7 +260,9 @@ export default function AdminProducts() {
     if (!authReady) return;
 
     try {
-      const response = await fetch('/api/admin/stock-adjustments');
+      const response = await fetch('/api/admin/stock-adjustments', {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch stock adjustments');
       }

@@ -161,7 +161,7 @@ export default function ProductGrid({ products, onProductClick, onAddToCart }: P
                       {/* Green add bubble */}
                       {animatingAdd[product.id] && (
                         <div className="absolute -top-6 right-0 w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs flying-bubble">
-                          +{step}
+                          +1
                         </div>
                       )}
                     </div>

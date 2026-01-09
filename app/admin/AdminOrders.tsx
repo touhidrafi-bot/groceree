@@ -121,7 +121,9 @@ export default function AdminOrders() {
     if (!authReady) return null;
 
     try {
-      const orders = await fetch('/api/admin/orders').then(r => r.json());
+      const orders = await fetch('/api/admin/orders', {
+        credentials: 'include'
+      }).then(r => r.json());
       setOrders(orders);
       return orders;
     } catch (err) {
@@ -139,7 +141,9 @@ export default function AdminOrders() {
   if (!authReady) return;
 
   try {
-    const drivers = await fetch('/api/admin/drivers').then(r => r.json());
+    const drivers = await fetch('/api/admin/drivers', {
+      credentials: 'include'
+    }).then(r => r.json());
     setDrivers(drivers);
   } catch (err) {
     console.error('Error loading drivers:', err);
@@ -152,7 +156,9 @@ export default function AdminOrders() {
     if (!authReady) return;
 
     try {
-      const products = await fetch('/api/admin/products').then(r => r.json());
+      const products = await fetch('/api/admin/products', {
+        credentials: 'include'
+      }).then(r => r.json());
       setProducts(products);
     } catch (error) {
       console.error('Error loading products:', error);

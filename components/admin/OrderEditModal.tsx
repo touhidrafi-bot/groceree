@@ -266,6 +266,7 @@ export default function OrderEditModal({ order, products, onClose: _onClose, onU
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
+        credentials: 'include',
         body: JSON.stringify({
           action: 'batch_update',
           orderId: order.id,
