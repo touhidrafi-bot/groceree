@@ -4,7 +4,7 @@
   },
   "builder.autoDetectDevServer": false,
   "builder.command": "npm run dev",
-  "builder.launchType": "browser",
+  "builder.launchType": "desktop",
   "builder.runDevServer": true,
   "builder.serverUrl": "http://localhost:3001",
   "deno.enablePaths": [

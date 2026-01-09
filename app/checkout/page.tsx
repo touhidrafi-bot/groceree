@@ -341,6 +341,19 @@ await supabase
             throw new Error('Please sign in again to complete payment');
           }
 
+          const currentOrigin = window.location.origin;
+          const frontendUrl = currentOrigin.includes('localhost') || currentOrigin.includes('builder.io')
+            ? currentOrigin
+            : process.env.NEXT_PUBLIC_FRONTEND_URL || currentOrigin;
+
+          console.log('Creating Stripe checkout session with:', {
+            orderId: result.orderId,
+            frontendUrl,
+            currentOrigin,
+            envUrl: process.env.NEXT_PUBLIC_FRONTEND_URL,
+            amount: totalWithTip,
+          });
+
           const stripeResponse = await fetch(
             `${SUPABASE_URL}/functions/v1/stripe-payment-intent`,
             {
@@ -359,6 +372,7 @@ await supabase
                   firstName: form.firstName,
                   lastName: form.lastName,
                 },
+                frontendUrl: frontendUrl,
               }),
             },
           );

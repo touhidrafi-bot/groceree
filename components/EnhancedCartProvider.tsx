@@ -90,10 +90,27 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const localItems = cartStore.getItems();
 
       const response = await fetch('/api/cart/sync', {
-        credentials: 'include'
+        credentials: 'include',
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
+
       if (!response.ok) {
-        console.error('Failed to sync cart with database:', response.status, response.statusText);
+        const errorData = await response.text();
+        console.error('Failed to sync cart with database:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorBody: errorData,
+          userId: user?.id,
+          authReady: !!user
+        });
+
+        // If 401, user session might have expired
+        if (response.status === 401) {
+          console.warn('Cart sync auth failed - user session may have expired. Local cart will be preserved.');
+        }
         return;
       }
 
@@ -203,11 +220,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        console.error('Error adding item to database cart:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: responseData
-        });
+        if (response.status === 401) {
+          console.warn('Cart update auth failed - user session may have expired', { productId, quantity });
+        } else {
+          console.error('Error adding item to database cart:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: responseData,
+            productId,
+            quantity
+          });
+        }
       } else {
         console.log('Successfully added item to database cart:', { productId, quantity });
       }
@@ -244,11 +267,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!response.ok) {
-        console.error('Error removing item from database cart:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: responseData
-        });
+        if (response.status === 401) {
+          console.warn('Cart remove auth failed - user session may have expired', { productId });
+        } else {
+          console.error('Error removing item from database cart:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: responseData,
+            productId
+          });
+        }
       } else {
         console.log('Successfully removed item from database cart:', { productId });
       }
@@ -268,11 +296,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ action: 'clear' })
       });
 
+      let responseData: any = {};
+      try {
+        responseData = await response.json();
+      } catch {
+        const text = await response.text();
+        responseData = { raw: text };
+      }
+
       if (!response.ok) {
-        console.error('Error clearing database cart');
+        if (response.status === 401) {
+          console.warn('Cart clear auth failed - user session may have expired');
+        } else {
+          console.error('Error clearing database cart:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: responseData
+          });
+        }
       }
     } catch (error) {
-      console.error('Error clearing database cart:', error);
+      console.error('Error clearing database cart:', {
+        message: error instanceof Error ? error.message : String(error)
+      });
     }
   };
 

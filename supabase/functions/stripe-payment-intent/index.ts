@@ -36,7 +36,20 @@ serve(async (req) => {
     if (!stripeSecretKey) throw new Error('Stripe secret key not configured')
 
     const body = await req.json()
-    const { action, orderId, amount, currency = 'cad', customerInfo, paymentIntentId } = body
+    const { action, orderId, amount, currency = 'cad', customerInfo, paymentIntentId, frontendUrl: clientFrontendUrl } = body
+
+    // Try to infer frontend URL from request headers if not provided by client
+    let headerOrigin = ''
+    const referer = req.headers.get('referer')
+    if (referer) {
+      try {
+        const refererUrl = new URL(referer)
+        headerOrigin = `${refererUrl.protocol}//${refererUrl.host}`
+        console.log('Inferred frontend URL from referer header:', headerOrigin)
+      } catch (e) {
+        console.log('Could not parse referer header:', referer)
+      }
+    }
 
     const stripeHeaders = {
       'Authorization': `Bearer ${stripeSecretKey}`,
@@ -63,13 +76,32 @@ serve(async (req) => {
         const params = new URLSearchParams()
         params.append('payment_method_types[]', 'card')
         params.append('mode', 'payment')
-        // Use a fallback frontend URL if env not set
-        let frontendUrl = Deno.env.get('FRONTEND_URL')
+
+        // Try multiple sources for frontend URL in order of preference:
+        // 1. Client-provided URL (most reliable - from current browser)
+        // 2. Referer header (from request)
+        // 3. Environment variable
+        // 4. Production fallback
+        let frontendUrl = clientFrontendUrl || headerOrigin || Deno.env.get('FRONTEND_URL')
         if (!frontendUrl || !/^https?:\/\//.test(frontendUrl)) {
           frontendUrl = 'https://groceree.ca'; // fallback to production domain
         }
-        params.append('success_url', `${frontendUrl}/order-success?orderId=${oid}&session_id={CHECKOUT_SESSION_ID}&payment=success`)
-params.append('cancel_url', `${frontendUrl}/checkout?canceled=true`)
+
+        console.log('Stripe checkout URL construction:', {
+          clientFrontendUrl,
+          headerOrigin,
+          envFrontendUrl: Deno.env.get('FRONTEND_URL'),
+          finalFrontendUrl: frontendUrl,
+          orderId: oid,
+        });
+
+        const successUrl = `${frontendUrl}/order-success?orderId=${oid}&session_id={CHECKOUT_SESSION_ID}&payment=success`
+        const cancelUrl = `${frontendUrl}/checkout?canceled=true`
+
+        console.log('Stripe session URLs:', { successUrl, cancelUrl })
+
+        params.append('success_url', successUrl)
+        params.append('cancel_url', cancelUrl)
         params.append('metadata[order_id]', String(oid))
         params.append('line_items[0][price_data][currency]', cur)
         params.append('line_items[0][price_data][product_data][name]', `Order ${orderChk.order_number || oid}`)

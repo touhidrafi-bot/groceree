@@ -10,7 +10,7 @@ interface OrderItem {
   id: string;
   quantity: number;
   unit_price: number;
-  bottle_price?: number;
+  bottle_price?: number | null;
   total_price: number;
   product: {
     id: string;
@@ -43,26 +43,12 @@ interface OrderDetails {
 
 
 function OrderSuccessContent() {
-  const [orderId, setOrderId] = useState<string | null>(null);
+  const [_orderId, setOrderId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [total, setTotal] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
-
-  useEffect(() => {
-    try {
-      const params = new URLSearchParams(window.location.search || '');
-      setOrderId(params.get('orderId'));
-      setSessionId(params.get('session_id'));
-      setPaymentStatus(params.get('payment'));
-      setOrderNumber(params.get('orderNumber'));
-      setTotal(params.get('total'));
-      setPaymentMethod(params.get('paymentMethod'));
-    } catch {
-      // ignore; will handle missing params later
-    }
-  }, []);
 
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,9 +61,35 @@ function OrderSuccessContent() {
     const fetchOrderDetails = async () => {
       if (!isMountedRef.current) return;
 
-      if (!orderId) {
+      // Read URL params directly here to avoid race condition with state
+      const urlParams = new URLSearchParams(window.location.search || '');
+      const urlOrderId = urlParams.get('orderId');
+      const urlSessionId = urlParams.get('session_id');
+      const urlPaymentStatus = urlParams.get('payment');
+
+      console.log('Reading URL params directly in fetch effect:', {
+        urlOrderId,
+        urlSessionId,
+        urlPaymentStatus,
+      });
+
+      // Update state with URL params for display purposes
+      setOrderId(urlOrderId);
+      setSessionId(urlSessionId);
+      setPaymentStatus(urlPaymentStatus);
+      setOrderNumber(urlParams.get('orderNumber'));
+      setTotal(urlParams.get('total'));
+      setPaymentMethod(urlParams.get('paymentMethod'));
+
+      if (!urlOrderId) {
+        console.warn('Order ID missing from URL parameters', {
+          search: window.location.search,
+          urlOrderId,
+          urlSessionId,
+          urlPaymentStatus,
+        });
         if (isMountedRef.current) {
-          setError('Order ID not found');
+          setError('Order ID not found in URL. Please check the link or contact support if you believe this is an error.');
           setLoading(false);
         }
         return;
@@ -98,7 +110,7 @@ function OrderSuccessContent() {
         }
 
         // If coming from Stripe, update payment status first
-        if (sessionId && paymentStatus === 'success') {
+        if (urlSessionId && urlPaymentStatus === 'success') {
           if (!SUPABASE_URL) {
             console.warn('Skipping webhook call: NEXT_PUBLIC_SUPABASE_URL not configured');
           } else {
@@ -115,9 +127,9 @@ function OrderSuccessContent() {
                     type: 'checkout.session.completed',
                     data: {
                       object: {
-                        id: sessionId,
+                        id: urlSessionId,
                         metadata: {
-                          order_id: orderId
+                          order_id: urlOrderId
                         }
                       }
                     }
@@ -164,14 +176,19 @@ function OrderSuccessContent() {
               products(id, name, unit, image_url)
             )
           `)
-          .eq('id', orderId)
+          .eq('id', urlOrderId)
           .eq('customer_id', session.user.id)
           .single();
 
         if (!isMountedRef.current) return;
 
         if (orderError || !order) {
-          console.error('Order fetch error:', orderError);
+          console.error('Order fetch error:', {
+            error: orderError,
+            urlOrderId,
+            urlSessionId,
+            userId: session.user.id
+          });
           if (isMountedRef.current) {
             setError('Order not found or access denied');
             setLoading(false);
@@ -181,19 +198,24 @@ function OrderSuccessContent() {
 
         const normalizedOrder: OrderDetails = {
           ...order,
-          order_items: order.order_items.map((item: any) => ({
-            id: item.id,
-            quantity: Number(item.quantity),
-            unit_price: Number(item.unit_price),
-            bottle_price: Number(item.bottle_price ?? 0),
-            total_price: Number(item.total_price),
-            product: item.products ?? {
-              id: '',
-              name: 'Unknown product',
-              unit: '',
-              image_url: undefined,
-            },
-          })),
+          order_items: order.order_items.map((item: any) => {
+            // Handle products that might come back as an array from PostgREST
+            const productData = Array.isArray(item.products) ? item.products[0] : item.products;
+            const bottlePrice = item.bottle_price ? Number(item.bottle_price) : undefined;
+            return {
+              id: item.id,
+              quantity: Number(item.quantity),
+              unit_price: Number(item.unit_price),
+              bottle_price: bottlePrice,
+              total_price: Number(item.total_price),
+              product: productData ?? {
+                id: '',
+                name: 'Unknown product',
+                unit: '',
+                image_url: undefined,
+              },
+            };
+          }),
         };
 
         if (isMountedRef.current) {
@@ -216,7 +238,7 @@ function OrderSuccessContent() {
     return () => {
       isMountedRef.current = false;
     };
-  }, [orderId, sessionId, paymentStatus]);
+  }, []);
 
   // Format delivery time display
   const formatDeliveryTime = () => {

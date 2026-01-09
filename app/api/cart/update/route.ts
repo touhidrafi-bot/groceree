@@ -10,9 +10,18 @@ export async function POST(request: NextRequest) {
     // Get the current user
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    if (sessionError || !session?.user) {
-      console.error('Authentication failed:', { sessionError });
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (sessionError) {
+      console.error('Session error in cart update:', {
+        error: sessionError.message,
+        code: sessionError.code,
+        action: (await request.json()).action
+      });
+      return NextResponse.json({ error: 'Authentication error', details: sessionError.message }, { status: 401 });
+    }
+
+    if (!session?.user) {
+      console.error('No session found for cart update');
+      return NextResponse.json({ error: 'Not authenticated - session not found' }, { status: 401 });
     }
 
     const user = session.user;

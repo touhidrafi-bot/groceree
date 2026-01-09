@@ -8,16 +8,24 @@ export async function GET() {
     // Get the current user
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    if (sessionError || !session?.user) {
-      console.error('Authentication failed in sync:', { sessionError });
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (sessionError) {
+      console.error('Session error in cart sync:', {
+        error: sessionError.message,
+        code: sessionError.code
+      });
+      return NextResponse.json({ error: 'Authentication error', details: sessionError.message }, { status: 401 });
+    }
+
+    if (!session?.user) {
+      console.error('No session found for cart sync');
+      return NextResponse.json({ error: 'Not authenticated - session not found' }, { status: 401 });
     }
 
     const user = session.user;
 
-    if (sessionError || !user) {
-      console.error('Authentication failed:', { sessionError });
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (!user.id) {
+      console.error('No user ID in session');
+      return NextResponse.json({ error: 'Invalid session - no user ID' }, { status: 401 });
     }
 
     const { data: cartItems, error } = await supabase
